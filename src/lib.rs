@@ -1,13 +1,10 @@
 #![allow(dead_code, unused_imports)]
-extern crate libc;
-
 use std::io::Read;
 use std::default::Default;
 use std::io::BufReader;
 use std::path::Path;
 use std::fs::File;
 use self::mad_decoder_mode::* ;
-use libc::{c_int, size_t};
 
 #[link(name = "mad")]
 extern {
@@ -22,21 +19,22 @@ extern {
                         error_callback: extern fn(),
                         message_callback: extern fn());
     fn mad_decoder_run(input: &mut mad_decoder, mode: mad_decoder_mode) -> i32;
-    fn mad_stream_buffer(stream: isize, buf_start: &[u8], buf_length: usize);
+    fn mad_stream_buffer(stream: isize, buf_start: *const u8, buf_length: usize);
 }
 
 #[repr(C)]
 struct mad_pcm {
-    sample_rate: usize,
+    sample_rate: u32,
     channels: u16,
     length: u16,
-    samples: [[u32; 1152]; 2],
+    samples: [[i32; 1152]; 2],
 }
 
 #[repr(C)]
 struct mad_message<'a> {
-    start: &'a mut [u8; 4096],
-    length: u32,
+    start: &'a *const u8,
+    length: usize,
+    reader: &'a mut BufReader<std::fs::File>,
 }
 
 #[repr(C)]
@@ -81,23 +79,31 @@ extern fn empty_callback() {
 fn test_open_file() {
     let path = Path::new("test_samples/fs-242.mp3");
     let f = File::open(&path).unwrap();
-    let mut input_buffer = [0u8; 4096];
-    let mut reader = BufReader::new(&f);
-
+    let mut reader = BufReader::new(f);
+    let mut input_buffer = vec![0u8; 4096];
+    reader.read(&mut input_buffer);
     let message = &mut mad_message {
-        start: &mut input_buffer,
-        length: 4096u32,
+        start: &input_buffer.as_ptr(),
+        length: input_buffer.len(),
+        reader: &mut reader,
     };
-
     let mut decoder: mad_decoder = Default::default();
     let mut decoding_result: i32 = 42;
 
     extern fn input_callback (msg: &mut mad_message, stream: isize) {
-        panic!("In INPUT!");
+        let mut input_buffer = vec![0u8; 4096];
+        msg.reader.read(&mut input_buffer);
+        unsafe {
+            mad_stream_buffer(stream, input_buffer.as_ptr(), input_buffer.len());
+        }
     }
 
     extern fn output_callback(message: &mut mad_message, header: isize, pcm: &mad_pcm) {
-        panic!("In OUTPUT!");
+        for idx in 0..(pcm.length as usize) {
+            println!("Sample: {}", pcm.samples[0][idx]);
+        }
+
+        panic!("PCM!: {}", pcm.length);
     }
 
     unsafe {
