@@ -10,16 +10,24 @@ use self::mad_decoder_mode::* ;
 extern {
     fn mad_decoder_init(decoder: &mad_decoder,
                         message: &mad_message,
-                        input_callback: extern fn(message: &mut mad_message, stream: isize),
+                        input_callback: extern fn(message: &mut mad_message, stream: isize) -> mad_flow,
                         header_callback: extern fn(),
                         filter_callback: extern fn(),
                         output_callback: extern fn(message: &mut mad_message,
                                                    header: isize,
-                                                   pcm: &mad_pcm),
+                                                   pcm: &mad_pcm) -> mad_flow,
                         error_callback: extern fn(),
                         message_callback: extern fn());
     fn mad_decoder_run(input: &mut mad_decoder, mode: mad_decoder_mode) -> i32;
     fn mad_stream_buffer(stream: isize, buf_start: *const u8, buf_length: usize);
+}
+
+#[repr(C)]
+enum mad_flow {
+    mf_continue = 0x0000,	/* continue normally */
+    mf_stop     = 0x0010,	/* stop decoding normally */
+    mf_break    = 0x0011,	/* stop decoding and signal an error */
+    mf_ignore   = 0x0020	/* ignore the current frame */
 }
 
 #[repr(C)]
@@ -35,6 +43,7 @@ struct mad_message<'a> {
     start: &'a *const u8,
     length: usize,
     reader: &'a mut BufReader<std::fs::File>,
+    position: usize,
 }
 
 #[repr(C)]
@@ -86,24 +95,29 @@ fn test_open_file() {
         start: &input_buffer.as_ptr(),
         length: input_buffer.len(),
         reader: &mut reader,
+        position: 0,
     };
     let mut decoder: mad_decoder = Default::default();
     let mut decoding_result: i32 = 42;
 
-    extern fn input_callback (msg: &mut mad_message, stream: isize) {
+    extern fn input_callback (msg: &mut mad_message, stream: isize) -> mad_flow {
         let mut input_buffer = vec![0u8; 4096];
-        msg.reader.read(&mut input_buffer);
+        let read_result = msg.reader.read(&mut input_buffer).unwrap();
         unsafe {
             mad_stream_buffer(stream, input_buffer.as_ptr(), input_buffer.len());
         }
-    }
 
-    extern fn output_callback(message: &mut mad_message, header: isize, pcm: &mad_pcm) {
-        for idx in 0..(pcm.length as usize) {
-            println!("Sample: {}", pcm.samples[0][idx]);
+        msg.position += read_result;
+        if read_result == 0 {
+            return mad_flow::mf_stop;
         }
 
-        panic!("PCM!: {}", pcm.length);
+        mad_flow::mf_continue
+    }
+
+    extern fn output_callback(msg: &mut mad_message, header: isize, pcm: &mad_pcm) -> mad_flow {
+        println!("Position: {}", msg.position);
+        mad_flow::mf_continue
     }
 
     unsafe {
