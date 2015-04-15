@@ -1,21 +1,22 @@
 #![allow(dead_code, unused_imports)]
+extern crate libc;
 
 use std::io::Read;
 use std::default::Default;
 use std::io::BufReader;
 use std::path::Path;
 use std::fs::File;
-use std::ptr;
 use self::mad_decoder_mode::* ;
+use libc::{c_int, size_t};
 
 #[link(name = "mad")]
 extern {
     fn mad_decoder_init(decoder: &mad_decoder,
                         message: &mad_message,
-                        input_callback: extern fn(message: &mad_message, stream: isize),
+                        input_callback: extern fn(message: &mut mad_message, stream: isize),
                         header_callback: extern fn(),
                         filter_callback: extern fn(),
-                        output_callback: extern fn(message: &mad_message,
+                        output_callback: extern fn(message: &mut mad_message,
                                                    header: isize,
                                                    pcm: &mad_pcm),
                         error_callback: extern fn(),
@@ -34,9 +35,8 @@ struct mad_pcm {
 
 #[repr(C)]
 struct mad_message<'a> {
-    start: &'a [u8],
+    start: &'a mut [u8; 4096],
     length: u32,
-    test_string: &'static str,
 }
 
 #[repr(C)]
@@ -81,25 +81,22 @@ extern fn empty_callback() {
 fn test_open_file() {
     let path = Path::new("test_samples/fs-242.mp3");
     let f = File::open(&path).unwrap();
+    let mut input_buffer = [0u8; 4096];
     let mut reader = BufReader::new(&f);
-    let input_buffer = &mut [0u8; 4096];
-    reader.read(input_buffer);
 
-    let message = &mad_message {
-        start: input_buffer,
-        length: input_buffer.len() as u32,
-        test_string: "This is a test.",
+    let message = &mut mad_message {
+        start: &mut input_buffer,
+        length: 4096u32,
     };
 
     let mut decoder: mad_decoder = Default::default();
     let mut decoding_result: i32 = 42;
 
-    extern fn input_callback (message: &mad_message, stream: isize) {
-        panic!("{}", message.test_string);
-        // mad_stream_buffer(stream, message.start, message.length as usize);
+    extern fn input_callback (msg: &mut mad_message, stream: isize) {
+        panic!("In INPUT!");
     }
 
-    extern fn output_callback(message: &mad_message, header: isize, pcm: &mad_pcm) {
+    extern fn output_callback(message: &mut mad_message, header: isize, pcm: &mad_pcm) {
         panic!("In OUTPUT!");
     }
 
