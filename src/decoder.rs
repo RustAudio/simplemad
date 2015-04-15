@@ -4,7 +4,7 @@ use std::default::Default;
 use std::io::BufReader;
 use std::path::Path;
 use std::fs::File;
-use std::sync::mpsc::{Sender, Receiver};
+use std::sync::mpsc::{SyncSender, Receiver};
 use std::sync::mpsc;
 use std::thread;
 use self::mad_decoder_mode::* ;
@@ -45,7 +45,7 @@ struct mad_pcm {
 struct mad_message<'a> {
     buffer: &'a mut [u8; 4096],
     reader: &'a mut (io::Read + 'a),
-    sender: &'a Sender<Frame>,
+    sender: &'a SyncSender<Frame>,
 }
 
 #[repr(C)]
@@ -94,7 +94,7 @@ pub struct Frame {
 }
 
 pub fn decode(path_str: &'static str) -> Receiver<Frame> {
-    let (tx, rx): (Sender<Frame>, Receiver<Frame>) = mpsc::channel();
+    let (tx, rx) = mpsc::sync_channel::<Frame>(2);
     thread::spawn(move || {
         let path = Path::new(path_str);
         let f = File::open(&path).unwrap();
