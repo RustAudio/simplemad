@@ -112,7 +112,7 @@ pub fn decode<T>(mut reader: T) -> Receiver<Frame>
         extern fn input_callback (msg: &mut mad_message, stream: isize) -> mad_flow {
             let read_result = msg.reader.read(msg.buffer).unwrap();
             unsafe {
-                mad_stream_buffer(stream, msg.buffer.as_ptr(), msg.buffer.len());
+                mad_stream_buffer(stream, msg.buffer.as_ptr(), read_result);
             }
 
             if read_result == 0 {
@@ -158,11 +158,11 @@ fn test_open_file() {
     let decoder = self::decode(f);
     let decoder_b = self::decode(reader_b);
     for frame in decoder.iter() {
-        println!("Got frame: {}", frame.sample_rate);
+        println!("Got frame: {}, {}, {}", frame.sample_rate, frame.channels, frame.length);
     }
 
     for frame in decoder_b.iter() {
-        println!("Got frame: {}", frame.sample_rate);
+        println!("Got frame: {}, {}, {}", frame.sample_rate, frame.channels, frame.length);
     }
     assert!(true);
 }
