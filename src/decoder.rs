@@ -45,7 +45,7 @@ struct mad_pcm {
 
 #[repr(C)]
 struct mad_message<'a> {
-    buffer: &'a mut [u8; 4096],
+    buffer: &'a mut [u8; 16384],
     reader: &'a mut (io::Read + 'a),
     sender: &'a SyncSender<Frame>,
 }
@@ -89,17 +89,17 @@ extern fn empty_callback() {
 }
 
 pub struct Frame {
-    sample_rate: u32,
-    channels: u16,
-    length: u16,
-    samples: [[i32; 1152]; 2],
+    pub sample_rate: u32,
+    pub channels: u16,
+    pub length: u16,
+    pub samples: [[i32; 1152]; 2],
 }
 
 pub fn decode<T>(mut reader: T) -> Receiver<Frame>
     where T: io::Read + Send + 'static {
-    let (tx, rx) = mpsc::sync_channel::<Frame>(2);
+    let (tx, rx) = mpsc::sync_channel::<Frame>(0);
     thread::spawn(move || {
-        let mut input_buffer = [0u8; 4096];
+        let mut input_buffer = [0u8; 16384];
         reader.read(&mut input_buffer);
         let message = &mut mad_message {
             buffer: &mut input_buffer,
@@ -111,6 +111,7 @@ pub fn decode<T>(mut reader: T) -> Receiver<Frame>
 
         extern fn input_callback (msg: &mut mad_message, stream: isize) -> mad_flow {
             let read_result = msg.reader.read(msg.buffer).unwrap();
+            // println!("Read {}", read_result);
             unsafe {
                 mad_stream_buffer(stream, msg.buffer.as_ptr(), read_result);
             }
@@ -130,7 +131,7 @@ pub fn decode<T>(mut reader: T) -> Receiver<Frame>
                                    channels: pcm.channels,
                                    length: pcm.length,
                                    samples: pcm.samples});
-            mad_flow::mf_stop
+            mad_flow::mf_continue
         }
 
         unsafe {
@@ -148,21 +149,3 @@ pub fn decode<T>(mut reader: T) -> Receiver<Frame>
     rx
 }
 
-#[test]
-fn test_open_file() {
-    println!("");
-    let path = Path::new("test_samples/fs-242.mp3");
-    let f = File::open(&path).unwrap();
-    let f_b = File::open(&path).unwrap();
-    let reader_b = BufReader::new(f_b);
-    let decoder = self::decode(f);
-    let decoder_b = self::decode(reader_b);
-    for frame in decoder.iter() {
-        println!("Got frame: {}, {}, {}", frame.sample_rate, frame.channels, frame.length);
-    }
-
-    for frame in decoder_b.iter() {
-        println!("Got frame: {}, {}, {}", frame.sample_rate, frame.channels, frame.length);
-    }
-    assert!(true);
-}
