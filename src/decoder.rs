@@ -10,12 +10,14 @@ use std::marker::Send;
 use std::thread;
 use std::io::Cursor;
 use self::mad_decoder_mode::* ;
+use std::mem::size_of;
 
 #[link(name = "mad")]
 extern {
     fn mad_decoder_init(decoder: &mad_decoder,
                         message: &mad_message,
-                        input_callback: extern fn(message: &mut mad_message, stream: isize) -> mad_flow,
+                        input_callback: extern fn(message: &mut mad_message,
+                                                  stream: &mad_stream) -> mad_flow,
                         header_callback: extern fn(),
                         filter_callback: extern fn(),
                         output_callback: extern fn(message: &mut mad_message,
@@ -26,7 +28,7 @@ extern {
                                                   frame: isize) -> mad_flow,
                         message_callback: extern fn());
     fn mad_decoder_run(input: &mut mad_decoder, mode: mad_decoder_mode) -> i32;
-    fn mad_stream_buffer(stream: isize, buf_start: *const u8, buf_length: usize);
+    fn mad_stream_buffer(stream: &mad_stream, buf_start: *const u8, buf_length: u64);
 }
 
 #[repr(C)]
@@ -79,17 +81,17 @@ struct mad_bitptr {
 struct mad_stream {
     buffer: isize,
     buff_end: isize,
-    skip_len: u32,
-    sync: i16,
-    free_rate: u32,
+    skip_len: u64,
+    sync: i32,
+    free_rate: u64,
     this_frame: isize,
     next_frame: isize,
     ptr: mad_bitptr,
     anc_ptr: mad_bitptr,
-    anc_bitlen: u16,
+    anc_bitlen: u32,
     buffer_mdlen: isize,
-    md_len: u16,
-    options: i16,
+    md_len: u32,
+    options: i32,
     error: mad_error,
 }
 
@@ -103,9 +105,11 @@ struct mad_pcm {
 
 #[repr(C)]
 struct mad_message<'a> {
-    buffer: &'a mut [u8; 16384],
+    buffer: &'static mut [u8; 16384],
     reader: &'a mut (io::Read + 'a),
     sender: &'a SyncSender<Frame>,
+    error_count: u32,
+    frame_count: u32,
 }
 
 #[repr(C)]
@@ -121,16 +125,16 @@ impl Default for mad_decoder_mode {
 #[derive(Default)]
 #[repr(C)]
 struct mad_async_parameters {
-    pid: u32,
-    ain: isize,
-    aout: isize,
+    pid: u64,
+    ain: u32,
+    aout: u32,
 }
 
 #[derive(Default)]
 #[repr(C)]
 struct mad_decoder {
     mode: mad_decoder_mode,
-    options: isize,
+    options: i32,
     async: mad_async_parameters,
     sync: usize,
     cb_data: usize,
@@ -153,29 +157,23 @@ pub struct Frame {
     pub samples: [[i32; 1152]; 2],
 }
 
+static mut input_buffer: [u8; 16384] = [0; 16384];
+
 pub fn decode<T>(mut reader: T) -> Receiver<Frame>
     where T: io::Read + Send + 'static {
     let (tx, rx) = mpsc::sync_channel::<Frame>(0);
     thread::spawn(move || {
-        let mut input_buffer = [0u8; 16384];
-        reader.read(&mut input_buffer);
-        let message = &mut mad_message {
-            buffer: &mut input_buffer,
-            reader: &mut reader,
-            sender: &tx,
-        };
-        let mut decoder: mad_decoder = Default::default();
-        let mut decoding_result: i32 = 42;
-
-        extern fn input_callback (msg: &mut mad_message, stream: isize) -> mad_flow {
-            let read_result = msg.reader.read(msg.buffer).unwrap();
-            // println!("Read {}", read_result);
+        extern fn input_callback (msg: &mut mad_message, stream: &mad_stream) -> mad_flow {
             unsafe {
+                let read_result = msg.reader.read(msg.buffer).unwrap() as u64;
                 mad_stream_buffer(stream, msg.buffer.as_ptr(), read_result);
-            }
 
-            if read_result == 0 {
-                return mad_flow::mf_stop;
+                if read_result == 0 {
+                    println!("Frames: {}", msg.frame_count);
+                    println!("Errors: {}", msg.error_count);
+                    println!("Total:  {}", msg.error_count + msg.frame_count);
+                    return mad_flow::mf_stop;
+                }
             }
 
             mad_flow::mf_continue
@@ -186,6 +184,7 @@ pub fn decode<T>(mut reader: T) -> Receiver<Frame>
                                  frame: isize) -> mad_flow
         {
             println!("Error: {:?}", stream.error);
+            msg.error_count += 1;
             mad_flow::mf_continue
         }
 
@@ -193,6 +192,7 @@ pub fn decode<T>(mut reader: T) -> Receiver<Frame>
                                   header: isize,
                                   pcm: &mad_pcm) -> mad_flow
         {
+            msg.frame_count += 1;
             msg.sender.send(Frame {sample_rate: pcm.sample_rate,
                                    channels: pcm.channels,
                                    length: pcm.length,
@@ -201,6 +201,17 @@ pub fn decode<T>(mut reader: T) -> Receiver<Frame>
         }
 
         unsafe {
+            reader.read(&mut input_buffer);
+            let message = &mut mad_message {
+                buffer: &mut input_buffer,
+                reader: &mut reader,
+                sender: &tx,
+                error_count: 0,
+                frame_count: 0,
+            };
+            let mut decoder: mad_decoder = Default::default();
+            let mut decoding_result: i32 = 42;
+
             mad_decoder_init(&mut decoder,
                              message,
                              input_callback,
@@ -215,3 +226,12 @@ pub fn decode<T>(mut reader: T) -> Receiver<Frame>
     rx
 }
 
+#[test]
+fn data_sizes() {
+    assert_eq!(size_of::<isize>(), 8);
+    assert_eq!(size_of::<mad_bitptr>(), 16);
+    assert_eq!(size_of::<mad_error>(), 4);
+    assert_eq!(size_of::<mad_decoder>(), 88);
+    assert_eq!(size_of::<mad_pcm>(), 9224);
+    assert_eq!(size_of::<mad_stream>(), 120);
+}
