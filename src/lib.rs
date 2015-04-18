@@ -17,7 +17,7 @@ fn test_open_file() {
     for frame in decoder.iter() {
         frame_count += 1;
     }
-    assert!(true);
+    assert_eq!(frame_count, 1656);
 }
 
 /*
