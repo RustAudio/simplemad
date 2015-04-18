@@ -1,17 +1,17 @@
-use std::io::{Read, BufReader, Cursor, Seek, SeekFrom};
+#[allow(dead_code, unused)]
+use std::io::Read;
 use std::io;
 use std::default::Default;
-use std::path::Path;
-use std::fs::File;
 use std::sync::mpsc::{SyncSender, Receiver};
 use std::sync::mpsc;
 use std::marker::Send;
 use std::thread;
 use self::mad_decoder_mode::* ;
 use std::option::Option::{None, Some};
-use std::mem::size_of;
+use libc::{c_int, size_t};
 
 #[link(name = "mad")]
+#[repr(C)]
 extern {
     fn mad_decoder_init(decoder: &mad_decoder,
                         message: &mad_message,
@@ -31,6 +31,7 @@ extern {
 }
 
 #[repr(C)]
+#[allow(unused)]
 enum mad_flow {
     mf_continue = 0x0000,    /* continue normally */
     mf_stop     = 0x0010,    /* stop decoding normally */
@@ -40,6 +41,7 @@ enum mad_flow {
 
 #[derive(Debug)]
 #[repr(C)]
+#[allow(unused)]
 enum mad_error {
   mad_error_none           = 0x0000,    /* no error */
 
@@ -70,6 +72,7 @@ enum mad_error {
 }
 
 #[repr(C)]
+#[allow(unused)]
 struct mad_bitptr {
     byte: isize,
     cache: u16,
@@ -77,6 +80,7 @@ struct mad_bitptr {
 }
 
 #[repr(C)]
+#[allow(unused)]
 struct mad_stream {
     buffer: usize,
     buff_end: usize,
@@ -95,6 +99,7 @@ struct mad_stream {
 }
 
 #[repr(C)]
+#[allow(unused)]
 struct mad_pcm {
     sample_rate: u32,
     channels: u16,
@@ -103,6 +108,7 @@ struct mad_pcm {
 }
 
 #[repr(C)]
+#[allow(unused)]
 struct mad_message<'a> {
     buffer: &'static mut [u8; 16384],
     reader: &'a mut (io::Read + 'a),
@@ -111,6 +117,7 @@ struct mad_message<'a> {
 }
 
 #[repr(C)]
+#[allow(unused)]
 enum mad_decoder_mode {
     MAD_DECODER_MODE_SYNC = 0,
     MAD_DECODER_MODE_ASYNC
@@ -144,10 +151,7 @@ struct mad_decoder {
     message_func: usize,
 }
 
-extern fn empty_callback() {
-
-}
-
+#[allow(unused)]
 pub struct Frame {
     pub sample_rate: u32,
     pub channels: u16,
@@ -155,16 +159,23 @@ pub struct Frame {
     pub samples: [[i32; 1152]; 2],
 }
 
+#[repr(C)]
 static mut input_buffer: [u8; 16384] = [0; 16384];
 
 pub fn decode<T>(mut reader: T) -> Receiver<Frame>
     where T: io::Read + Send + 'static {
     let (tx, rx) = mpsc::sync_channel::<Frame>(0);
     thread::spawn(move || {
+        #[allow(unused)]
+        extern fn empty_callback() {
+
+        }
+
+        #[allow(unused)]
         extern fn input_callback (msg: &mut mad_message, stream: &mad_stream) -> mad_flow {
             unsafe {
                 let buffer_size = msg.buffer.len();
-                let next_frame_position = (stream.next_frame - stream.buffer);
+                let next_frame_position = stream.next_frame - stream.buffer;
                 let unused_byte_count = buffer_size - next_frame_position;
 
                 if unused_byte_count > 0 {
@@ -192,6 +203,7 @@ pub fn decode<T>(mut reader: T) -> Receiver<Frame>
             mad_flow::mf_continue
         }
 
+        #[allow(unused)]
         extern fn error_callback(msg: &mut mad_message,
                                  stream: &mad_stream,
                                  frame: isize) -> mad_flow
@@ -199,6 +211,7 @@ pub fn decode<T>(mut reader: T) -> Receiver<Frame>
             mad_flow::mf_continue
         }
 
+        #[allow(unused)]
         extern fn output_callback(msg: &mut mad_message,
                                   header: isize,
                                   pcm: &mad_pcm) -> mad_flow
@@ -235,6 +248,7 @@ pub fn decode<T>(mut reader: T) -> Receiver<Frame>
 
 #[test]
 fn data_sizes() {
+    use std::mem::size_of;
     assert_eq!(size_of::<isize>(), 8);
     assert_eq!(size_of::<mad_bitptr>(), 16);
     assert_eq!(size_of::<mad_error>(), 4);
@@ -242,3 +256,19 @@ fn data_sizes() {
     assert_eq!(size_of::<mad_pcm>(), 9224);
     assert_eq!(size_of::<mad_stream>(), 120);
 }
+
+#[test]
+fn test_short_file() {
+    use std::path::Path;
+    use std::fs::File;
+    println!("");
+    let path = Path::new("test_samples/tailtoddle_lo.mp3");
+    let f = File::open(&path).unwrap();
+    let decoder = decode(f);
+    let mut frame_count = 0;
+    for _ in decoder.iter() {
+        frame_count += 1;
+    }
+    assert_eq!(frame_count, 1656);
+}
+
