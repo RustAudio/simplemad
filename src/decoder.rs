@@ -1,14 +1,13 @@
 use std::io;
 use std::io::Read;
 use std::default::Default;
-use std::io::BufReader;
+use std::io::{BufReader, Cursor, Seek, SeekFrom};
 use std::path::Path;
 use std::fs::File;
 use std::sync::mpsc::{SyncSender, Receiver};
 use std::sync::mpsc;
 use std::marker::Send;
 use std::thread;
-use std::io::Cursor;
 use self::mad_decoder_mode::* ;
 use std::mem::size_of;
 
@@ -79,17 +78,17 @@ struct mad_bitptr {
 
 #[repr(C)]
 struct mad_stream {
-    buffer: isize,
-    buff_end: isize,
+    buffer: usize,
+    buff_end: usize,
     skip_len: u64,
     sync: i32,
     free_rate: u64,
-    this_frame: isize,
-    next_frame: isize,
+    this_frame: usize,
+    next_frame: usize,
     ptr: mad_bitptr,
     anc_ptr: mad_bitptr,
     anc_bitlen: u32,
-    buffer_mdlen: isize,
+    buffer_mdlen: usize,
     md_len: u32,
     options: i32,
     error: mad_error,
@@ -106,6 +105,7 @@ struct mad_pcm {
 #[repr(C)]
 struct mad_message<'a> {
     buffer: &'static mut [u8; 16384],
+    next_buffer: &'static mut [u8; 16384],
     reader: &'a mut (io::Read + 'a),
     sender: &'a SyncSender<Frame>,
     error_count: u32,
@@ -157,7 +157,8 @@ pub struct Frame {
     pub samples: [[i32; 1152]; 2],
 }
 
-static mut input_buffer: [u8; 16384] = [0; 16384];
+static mut input_buffer_a: [u8; 16384] = [0; 16384];
+static mut input_buffer_b: [u8; 16384] = [0; 16384];
 
 pub fn decode<T>(mut reader: T) -> Receiver<Frame>
     where T: io::Read + Send + 'static {
@@ -165,10 +166,30 @@ pub fn decode<T>(mut reader: T) -> Receiver<Frame>
     thread::spawn(move || {
         extern fn input_callback (msg: &mut mad_message, stream: &mad_stream) -> mad_flow {
             unsafe {
-                let read_result = msg.reader.read(msg.buffer).unwrap() as u64;
-                mad_stream_buffer(stream, msg.buffer.as_ptr(), read_result);
+                let next_frame = (stream.next_frame - stream.buffer);
+                let buffer_size = msg.buffer.len();
+                let unused_byte_count = buffer_size - next_frame;
+                let bytes_read = 1;
 
-                if read_result == 0 {
+                if unused_byte_count > 0 {
+                    let unused_data = &msg.buffer[next_frame as usize .. buffer_size as usize];
+                    for idx in 0 .. unused_data.len() {
+                        msg.next_buffer[idx] = unused_data[idx];
+                    }
+                }
+
+                let mut read_bytes = 0;
+                {
+                    let slice =  &mut msg.next_buffer[unused_byte_count .. buffer_size];
+                    read_bytes = msg.reader.read(slice).unwrap();
+                }
+
+                let tmp_ptr = msg.buffer;
+
+                println!("--REFILL {}--", read_bytes);
+                mad_stream_buffer(stream, msg.next_buffer.as_ptr(), 16384);
+
+                if bytes_read == 1 {
                     println!("Frames: {}", msg.frame_count);
                     println!("Errors: {}", msg.error_count);
                     println!("Total:  {}", msg.error_count + msg.frame_count);
@@ -201,17 +222,15 @@ pub fn decode<T>(mut reader: T) -> Receiver<Frame>
         }
 
         unsafe {
-            reader.read(&mut input_buffer);
             let message = &mut mad_message {
-                buffer: &mut input_buffer,
+                buffer: &mut input_buffer_a,
+                next_buffer: &mut input_buffer_b,
                 reader: &mut reader,
                 sender: &tx,
                 error_count: 0,
                 frame_count: 0,
             };
             let mut decoder: mad_decoder = Default::default();
-            let mut decoding_result: i32 = 42;
-
             mad_decoder_init(&mut decoder,
                              message,
                              input_callback,

@@ -35,6 +35,7 @@ fn test_long_file() {
 }
 */
 
+/*
 #[test]
 fn test_bad_file() {
     println!("");
@@ -47,3 +48,4 @@ fn test_bad_file() {
     }
     assert!(true);
 }
+*/
