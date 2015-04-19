@@ -9,6 +9,7 @@ use std::option::Option::{None, Some};
 use libc::types::common::c95::c_void;
 use libc::types::common::c99::*;
 use libc::types::os::arch::c95::*;
+use std::cmp::min;
 
 enum Error {
     Mad(MadError),
@@ -190,8 +191,8 @@ struct MadDecoder {
 #[allow(unused)]
 pub struct Frame {
     pub sample_rate: u32,
-    pub channels: uint16_t,
-    pub length: uint16_t,
+    pub channels: u16,
+    pub length: u16,
     pub samples: Vec<Vec<i32>>,
 }
 
@@ -205,7 +206,7 @@ extern fn input_cb (msg: *mut MadMessage, stream: &MadStream) -> MadFlow {
     unsafe {
         let buffer_size = (*msg).buffer.len();
         let next_frame_position = (stream.next_frame - stream.buffer) as usize;
-        let unused_byte_count = buffer_size - next_frame_position;
+        let unused_byte_count = buffer_size - min(next_frame_position, buffer_size);
 
         if unused_byte_count > 0 {
             for idx in 0 .. unused_byte_count {
@@ -225,7 +226,10 @@ extern fn input_cb (msg: *mut MadMessage, stream: &MadStream) -> MadFlow {
         match bytes_read {
             None    => return MadFlow::Stop,
             Some(0) => return MadFlow::Stop,
-            Some(n) => mad_stream_buffer(stream, (*msg).buffer.as_ptr(), n as u64),
+            Some(n) => {
+                let fresh_byte_count = n as u64 + unused_byte_count as u64;
+                mad_stream_buffer(stream, (*msg).buffer.as_ptr(), fresh_byte_count);
+            }
         }
     }
 
@@ -255,8 +259,8 @@ extern fn output_cb(msg: *mut MadMessage, header: c_int, pcm: &MadPcm) -> MadFlo
         samples.push(channel);
     }
     let frame = Ok(Frame {sample_rate: pcm.sample_rate,
-                          channels: pcm.channels,
-                          length: pcm.length,
+                          channels: pcm.channels as u16,
+                          length: pcm.length as u16,
                           samples: samples});
     unsafe {
         (*msg).sender.send(frame);
@@ -313,7 +317,10 @@ fn test_short_file() {
 
     for item in decoder {
         match item {
-            Err(_) => error_count += 1,
+            Err(e) => {
+                error_count += 1;
+                println!("Error: {:?}", e);
+            },
             Ok(f) => {
                 frame_count += 1;
                 assert_eq!(f.sample_rate, 11025);
@@ -322,7 +329,38 @@ fn test_short_file() {
             }
         }
     }
-    assert_eq!(frame_count, 1656);
-    assert_eq!(error_count, 1);
+    assert_eq!(frame_count, 1678);
+    assert_eq!(error_count, 14);
+}
+
+#[test]
+fn test_long_file() {
+    use std::path::Path;
+    use std::fs::File;
+    let path = Path::new("test_samples/fs-242.mp3");
+    let f = File::open(&path).unwrap();
+    let decoder = Decoder::new(Box::new(f));
+    let mut frame_count = 0;
+    let mut error_count = 0;
+
+    for item in decoder {
+        match item {
+            Err(e) => {
+                error_count += 1;
+                println!("Error: {:?}", e);
+            },
+            Ok(f) => {
+                frame_count += 1;
+                if frame_count % 1000 == 0 {
+                    println!("Frames: {}", frame_count);
+                }
+                assert_eq!(f.sample_rate, 48000);
+                assert_eq!(f.channels, 2);
+                assert_eq!(f.length, 1152);
+            }
+        }
+    }
+    assert_eq!(frame_count, 241683);
+    assert_eq!(error_count, 6);
 }
 
