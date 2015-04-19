@@ -46,9 +46,9 @@ enum mad_flow {
 }
 
 #[allow(unused)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(C)]
-enum mad_error {
+pub enum Error {
   mad_error_none           = 0x0000,    /* no error */
 
   mad_error_buflen         = 0x0001,    /* input buffer too small (or eof) */
@@ -101,7 +101,7 @@ struct mad_stream {
     buffer_mdlen: size_t,
     md_len: c_uint,
     options: c_int,
-    error: mad_error,
+    error: Error,
 }
 
 #[allow(unused)]
@@ -117,7 +117,7 @@ struct mad_pcm {
 struct MadMessage<'a> {
     buffer: &'static mut [u8; 16384],
     reader: &'a mut (io::Read + 'a),
-    sender: &'a SyncSender<Frame>,
+    sender: &'a SyncSender<Result<Frame, Error>>,
 }
 
 #[allow(unused)]
@@ -134,9 +134,9 @@ impl Default for mad_decoder_mode {
 #[derive(Default)]
 #[repr(C)]
 struct mad_async_parameters {
-    pid: u64,
-    ain: u32,
-    aout: u32,
+    pid: c_long,
+    ain: c_int,
+    aout: c_int,
 }
 
 #[derive(Default)]
@@ -205,6 +205,10 @@ extern fn error_callback(msg: *mut MadMessage,
                          stream: &mad_stream,
                          frame: c_int) -> mad_flow
 {
+    unsafe {
+        let error_type = stream.error.clone();
+        (*msg).sender.send(Err(error_type));
+    }
     mad_flow::mf_continue
 }
 
@@ -214,18 +218,19 @@ extern fn output_callback(msg: *mut MadMessage,
                           pcm: &mad_pcm) -> mad_flow
 {
     unsafe {
-        (*msg).sender.send(Frame {sample_rate: pcm.sample_rate,
-                                  channels: pcm.channels,
-                                  length: pcm.length,
-                                  samples: pcm.samples});
+        let frame = Ok(Frame {sample_rate: pcm.sample_rate,
+                              channels: pcm.channels,
+                              length: pcm.length,
+                              samples: pcm.samples});
+        (*msg).sender.send(frame);
     }
     mad_flow::mf_continue
 }
 
 #[allow(unused)]
-pub fn decode<T>(mut reader: T) -> Receiver<Frame>
+pub fn decode<T>(mut reader: T) -> Receiver<Result<Frame, Error>>
     where T: io::Read + Send + 'static {
-    let (tx, rx) = mpsc::sync_channel::<Frame>(0);
+    let (tx, rx): (SyncSender<Result<Frame, Error>>, Receiver<Result<Frame, Error>>) = mpsc::sync_channel::<Result<Frame, Error>>(2);
     thread::spawn(move || {
         unsafe {
             let mut message = MadMessage {
@@ -253,7 +258,7 @@ pub fn decode<T>(mut reader: T) -> Receiver<Frame>
 fn data_sizes() {
     use std::mem::size_of;
     assert_eq!(size_of::<mad_bitptr>(), 16);
-    assert_eq!(size_of::<mad_error>(), 4);
+    assert_eq!(size_of::<Error>(), 4);
     assert_eq!(size_of::<mad_decoder>(), 88);
     assert_eq!(size_of::<mad_pcm>(), 9224);
     assert_eq!(size_of::<mad_stream>(), 120);
@@ -263,14 +268,18 @@ fn data_sizes() {
 fn test_short_file() {
     use std::path::Path;
     use std::fs::File;
-    println!("");
     let path = Path::new("test_samples/tailtoddle_lo.mp3");
     let f = File::open(&path).unwrap();
     let decoder = decode(f);
     let mut frame_count = 0;
-    for _ in decoder.iter() {
-        frame_count += 1;
+    let mut error_count = 0;
+    for frame in decoder.iter() {
+        match frame {
+            Ok(_) => frame_count += 1,
+            Err(_) => error_count += 1,
+        }
     }
     assert_eq!(frame_count, 1656);
+    assert_eq!(error_count, 1);
 }
 
