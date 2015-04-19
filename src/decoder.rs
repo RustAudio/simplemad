@@ -48,32 +48,32 @@ enum MadFlow {
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub enum Error {
-  mad_error_none           = 0x0000,    /* no error */
+  None           = 0x0000,    /* no error */
 
-  mad_error_buflen         = 0x0001,    /* input buffer too small (or eof) */
-  mad_error_bufptr         = 0x0002,    /* invalid (null) buffer pointer */
+  BufLen         = 0x0001,    /* input buffer too small (or eof) */
+  BufPtr         = 0x0002,    /* invalid (null) buffer pointer */
 
-  mad_error_nomem          = 0x0031,    /* not enough memory */
+  NoMem          = 0x0031,    /* not enough memory */
 
-  mad_error_lostsync       = 0x0101,    /* lost synchronization */
-  mad_error_badlayer       = 0x0102,    /* reserved header layer value */
-  mad_error_badbitrate     = 0x0103,    /* forbidden bitrate value */
-  mad_error_badsamplerate  = 0x0104,    /* reserved sample frequency value */
-  mad_error_bademphasis    = 0x0105,    /* reserved emphasis value */
+  LostSync       = 0x0101,    /* lost synchronization */
+  BadLayer       = 0x0102,    /* reserved header layer value */
+  BadBitRate     = 0x0103,    /* forbidden bitrate value */
+  BadSampleRate  = 0x0104,    /* reserved sample frequency value */
+  BadEmphasis    = 0x0105,    /* reserved emphasis value */
 
-  mad_error_badcrc         = 0x0201,    /* crc check failed */
-  mad_error_badbitalloc    = 0x0211,    /* forbidden bit allocation value */
-  mad_error_badscalefactor = 0x0221,    /* bad scalefactor index */
-  mad_error_badmode        = 0x0222,    /* bad bitrate/mode combination */
-  mad_error_badframelen    = 0x0231,    /* bad frame length */
-  mad_error_badbigvalues   = 0x0232,    /* bad big_values count */
-  mad_error_badblocktype   = 0x0233,    /* reserved block_type */
-  mad_error_badscfsi       = 0x0234,    /* bad scalefactor selection info */
-  mad_error_baddataptr     = 0x0235,    /* bad main_data_begin pointer */
-  mad_error_badpart3len    = 0x0236,    /* bad audio data length */
-  mad_error_badhufftable   = 0x0237,    /* bad huffman table select */
-  mad_error_badhuffdata    = 0x0238,    /* huffman data overrun */
-  mad_error_badstereo      = 0x0239,    /* incompatible block_type for js */
+  BadCRC         = 0x0201,    /* crc check failed */
+  BadBitAlloc    = 0x0211,    /* forbidden bit allocation value */
+  BadScaleFactor = 0x0221,    /* bad scalefactor index */
+  BadMode        = 0x0222,    /* bad bitrate/mode combination */
+  BadFrameLen    = 0x0231,    /* bad frame length */
+  BadBigValues   = 0x0232,    /* bad big_values count */
+  BadBlockType   = 0x0233,    /* reserved block_type */
+  BadScFSI       = 0x0234,    /* bad scalefactor selection info */
+  BadDataPtr     = 0x0235,    /* bad main_data_begin pointer */
+  BadPart3Len    = 0x0236,    /* bad audio data length */
+  BadHuffTable   = 0x0237,    /* bad huffman table select */
+  BadHuffData    = 0x0238,    /* huffman data overrun */
+  BadStereo      = 0x0239,    /* incompatible block_type for js */
 }
 
 #[allow(unused)]
@@ -229,7 +229,7 @@ extern fn output_callback(msg: *mut MadMessage,
 #[allow(unused)]
 pub fn decode<T>(mut reader: T) -> Receiver<Result<Frame, Error>>
     where T: io::Read + Send + 'static {
-    let (tx, rx): (SyncSender<Result<Frame, Error>>, Receiver<Result<Frame, Error>>) = mpsc::sync_channel::<Result<Frame, Error>>(2);
+    let (tx, rx) = mpsc::sync_channel::<Result<Frame, Error>>(2);
     thread::spawn(move || {
         unsafe {
             let mut message = MadMessage {
