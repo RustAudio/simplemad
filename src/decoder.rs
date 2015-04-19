@@ -2,13 +2,38 @@ use std::thread;
 use std::io;
 use std::io::Read;
 use std::sync::mpsc;
-use std::sync::mpsc::{SyncSender, Receiver};
+use std::sync::mpsc::{SyncSender, Receiver, RecvError};
 use std::default::Default;
 use std::marker::Send;
 use std::option::Option::{None, Some};
 use libc::types::common::c95::c_void;
 use libc::types::common::c99::*;
 use libc::types::os::arch::c95::*;
+
+enum Error {
+    Mad(MadError),
+    Recv(RecvError),
+}
+
+struct Decoder {
+    rx: Box<Receiver<Result<Frame, MadError>>>,
+}
+
+impl Decoder {
+    fn new(reader: Box<io::Read + Send + 'static>) -> Decoder {
+        Decoder {
+            rx: Box::new(decode(reader)),
+        }
+    }
+
+    pub fn get_frame(&self) -> Result<Frame, Error> {
+        match self.rx.recv() {
+            Err(e) => Err(Error::Recv(e)),
+            Ok(Err(e)) => Err(Error::Mad(e)),
+            Ok(Ok(frame)) => Ok(frame),
+        }
+    }
+}
 
 #[allow(unused, improper_ctypes)]
 #[link(name = "mad")]
@@ -43,7 +68,7 @@ enum MadFlow {
 #[allow(unused)]
 #[derive(Debug, Clone)]
 #[repr(C)]
-pub enum Error {
+pub enum MadError {
   None           = 0x0000,    /* no error */
 
   BufLen         = 0x0001,    /* input buffer too small (or eof) */
@@ -96,7 +121,7 @@ struct MadStream {
     buffer_mdlen: size_t,
     md_len: c_uint,
     options: c_int,
-    error: Error,
+    error: MadError,
 }
 
 #[allow(unused)]
@@ -112,7 +137,7 @@ struct MadPcm {
 struct MadMessage<'a> {
     buffer: Box<[u8; 16384]>,
     reader: &'a mut (io::Read + 'a),
-    sender: &'a SyncSender<Result<Frame, Error>>,
+    sender: &'a SyncSender<Result<Frame, MadError>>,
 }
 
 #[allow(unused)]
@@ -223,10 +248,10 @@ extern fn output_callback(msg: *mut MadMessage,
 }
 
 #[allow(unused)]
-pub fn decode<T>(mut reader: T) -> Receiver<Result<Frame, Error>>
+pub fn decode<T>(mut reader: T) -> Receiver<Result<Frame, MadError>>
     where T: io::Read + Send + 'static {
     let input_buffer = Box::new([0u8; 16384]);
-    let (tx, rx) = mpsc::sync_channel::<Result<Frame, Error>>(2);
+    let (tx, rx) = mpsc::sync_channel::<Result<Frame, MadError>>(2);
     thread::spawn(move || {
         unsafe {
             let mut message = MadMessage {
@@ -253,8 +278,8 @@ pub fn decode<T>(mut reader: T) -> Receiver<Result<Frame, Error>>
 #[test]
 fn data_sizes() {
     use std::mem::size_of;
+    assert_eq!(size_of::<MadError>(), 4);
     assert_eq!(size_of::<MadBitPtr>(), 16);
-    assert_eq!(size_of::<Error>(), 4);
     assert_eq!(size_of::<MadDecoder>(), 88);
     assert_eq!(size_of::<MadPcm>(), 9224);
     assert_eq!(size_of::<MadStream>(), 120);
