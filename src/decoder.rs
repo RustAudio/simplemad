@@ -1,37 +1,43 @@
-#[allow(dead_code, unused)]
-use std::io::Read;
-use std::io;
-use std::default::Default;
-use std::sync::mpsc::{SyncSender, Receiver};
-use std::sync::mpsc;
-use std::marker::Send;
 use std::thread;
+use std::io;
+use std::io::Read;
+use std::sync::mpsc;
+use std::sync::mpsc::{SyncSender, Receiver};
+use std::default::Default;
+use std::marker::Send;
 use self::mad_decoder_mode::* ;
 use std::option::Option::{None, Some};
-use libc::{c_int, size_t};
+use libc::types::common::c95::c_void;
+use libc::types::common::c99::*;
+use libc::types::os::arch::c95::*;
 
-#[link(name = "mad")]
+#[allow(unused)]
 #[repr(C)]
+static mut input_buffer: [u8; 16384] = [0; 16384];
+
+#[allow(unused, improper_ctypes)]
+#[link(name = "mad")]
 extern {
-    fn mad_decoder_init(decoder: &mad_decoder,
-                        message: &mad_message,
-                        input_callback: extern fn(message: &mut mad_message,
+    fn mad_decoder_init(decoder: *mut mad_decoder,
+                        message: *mut c_void,
+                        input_callback: extern fn(message: *mut MadMessage,
                                                   stream: &mad_stream) -> mad_flow,
                         header_callback: extern fn(),
                         filter_callback: extern fn(),
-                        output_callback: extern fn(message: &mut mad_message,
-                                                   header: isize,
+                        output_callback: extern fn(message: *mut MadMessage,
+                                                   header: c_int,
                                                    pcm: &mad_pcm) -> mad_flow,
-                        error_callback: extern fn(message: &mut mad_message,
+                        error_callback: extern fn(message: *mut MadMessage,
                                                   stream: &mad_stream,
-                                                  frame: isize) -> mad_flow,
+                                                  frame: c_int) -> mad_flow,
                         message_callback: extern fn());
-    fn mad_decoder_run(input: &mut mad_decoder, mode: mad_decoder_mode) -> i32;
-    fn mad_stream_buffer(stream: &mad_stream, buf_start: *const u8, buf_length: u64);
+    #[allow(dead_code)]
+    fn mad_decoder_run(input: &mut mad_decoder, mode: mad_decoder_mode) -> c_int;
+    fn mad_stream_buffer(stream: &mad_stream, buf_start: *const u8, buf_length: size_t);
 }
 
-#[repr(C)]
 #[allow(unused)]
+#[repr(C)]
 enum mad_flow {
     mf_continue = 0x0000,    /* continue normally */
     mf_stop     = 0x0010,    /* stop decoding normally */
@@ -39,9 +45,9 @@ enum mad_flow {
     mf_ignore   = 0x0020    /* ignore the current frame */
 }
 
+#[allow(unused)]
 #[derive(Debug)]
 #[repr(C)]
-#[allow(unused)]
 enum mad_error {
   mad_error_none           = 0x0000,    /* no error */
 
@@ -71,53 +77,51 @@ enum mad_error {
   mad_error_badstereo      = 0x0239,    /* incompatible block_type for js */
 }
 
-#[repr(C)]
 #[allow(unused)]
+#[repr(C)]
 struct mad_bitptr {
-    byte: isize,
-    cache: u16,
-    left: u16,
+    byte: size_t,
+    cache: uint16_t,
+    left: uint16_t,
 }
 
-#[repr(C)]
 #[allow(unused)]
+#[repr(C)]
 struct mad_stream {
-    buffer: usize,
-    buff_end: usize,
-    skip_len: u64,
-    sync: i32,
-    free_rate: u64,
-    this_frame: usize,
-    next_frame: usize,
+    buffer: size_t,
+    buff_end: size_t,
+    skip_len: c_ulong,
+    sync: c_int,
+    free_rate: c_ulong,
+    this_frame: size_t,
+    next_frame: size_t,
     ptr: mad_bitptr,
     anc_ptr: mad_bitptr,
-    anc_bitlen: u32,
-    buffer_mdlen: usize,
-    md_len: u32,
-    options: i32,
+    anc_bitlen: c_uint,
+    buffer_mdlen: size_t,
+    md_len: c_uint,
+    options: c_int,
     error: mad_error,
 }
 
-#[repr(C)]
 #[allow(unused)]
+#[repr(C)]
 struct mad_pcm {
-    sample_rate: u32,
-    channels: u16,
-    length: u16,
-    samples: [[i32; 1152]; 2],
+    sample_rate: c_uint,
+    channels: uint16_t,
+    length: uint16_t,
+    samples: [[int32_t; 1152]; 2],
 }
 
-#[repr(C)]
 #[allow(unused)]
-struct mad_message<'a> {
+struct MadMessage<'a> {
     buffer: &'static mut [u8; 16384],
     reader: &'a mut (io::Read + 'a),
     sender: &'a SyncSender<Frame>,
-    frame_count: u32,
 }
 
-#[repr(C)]
 #[allow(unused)]
+#[repr(C)]
 enum mad_decoder_mode {
     MAD_DECODER_MODE_SYNC = 0,
     MAD_DECODER_MODE_ASYNC
@@ -139,101 +143,100 @@ struct mad_async_parameters {
 #[repr(C)]
 struct mad_decoder {
     mode: mad_decoder_mode,
-    options: i32,
+    options: c_int,
     async: mad_async_parameters,
-    sync: usize,
-    cb_data: usize,
-    input_func: usize,
-    header_func: usize,
-    filter_func: usize,
-    output_func: usize,
-    error_func: usize,
-    message_func: usize,
+    sync: size_t,
+    cb_data: size_t,
+    input_func: size_t,
+    header_func: size_t,
+    filter_func: size_t,
+    output_func: size_t,
+    error_func: size_t,
+    message_func: size_t,
 }
 
 #[allow(unused)]
 pub struct Frame {
     pub sample_rate: u32,
-    pub channels: u16,
-    pub length: u16,
+    pub channels: uint16_t,
+    pub length: uint16_t,
     pub samples: [[i32; 1152]; 2],
 }
 
-#[repr(C)]
-static mut input_buffer: [u8; 16384] = [0; 16384];
+#[allow(unused)]
+extern fn empty_callback() {
 
+}
+
+#[allow(unused)]
+extern fn input_callback (msg: *mut MadMessage, stream: &mad_stream) -> mad_flow {
+    unsafe {
+        let buffer_size = (*msg).buffer.len();
+        let next_frame_position = (stream.next_frame - stream.buffer) as usize;
+        let unused_byte_count = buffer_size - next_frame_position;
+
+        if unused_byte_count > 0 {
+            for idx in 0 .. unused_byte_count {
+                (*msg).buffer[idx] = (*msg).buffer[idx + next_frame_position];
+            }
+        }
+
+        let mut bytes_read = None;
+
+        if next_frame_position == 0 {
+            bytes_read = Some((*msg).reader.read((*msg).buffer).unwrap());
+        } else {
+            let slice = &mut (*msg).buffer[unused_byte_count .. buffer_size];
+            bytes_read = Some((*msg).reader.read(slice).unwrap());
+        }
+
+        match bytes_read {
+            None    => return mad_flow::mf_stop,
+            Some(0) => return mad_flow::mf_stop,
+            Some(n) => mad_stream_buffer(stream, (*msg).buffer.as_ptr(), n as u64),
+        }
+    }
+
+    mad_flow::mf_continue
+}
+
+#[allow(unused)]
+extern fn error_callback(msg: *mut MadMessage,
+                         stream: &mad_stream,
+                         frame: c_int) -> mad_flow
+{
+    mad_flow::mf_continue
+}
+
+#[allow(unused)]
+extern fn output_callback(msg: *mut MadMessage,
+                          header: c_int,
+                          pcm: &mad_pcm) -> mad_flow
+{
+    unsafe {
+        (*msg).sender.send(Frame {sample_rate: pcm.sample_rate,
+                                  channels: pcm.channels,
+                                  length: pcm.length,
+                                  samples: pcm.samples});
+    }
+    mad_flow::mf_continue
+}
+
+#[allow(unused)]
 pub fn decode<T>(mut reader: T) -> Receiver<Frame>
     where T: io::Read + Send + 'static {
     let (tx, rx) = mpsc::sync_channel::<Frame>(0);
     thread::spawn(move || {
-        #[allow(unused)]
-        extern fn empty_callback() {
-
-        }
-
-        #[allow(unused)]
-        extern fn input_callback (msg: &mut mad_message, stream: &mad_stream) -> mad_flow {
-            unsafe {
-                let buffer_size = msg.buffer.len();
-                let next_frame_position = stream.next_frame - stream.buffer;
-                let unused_byte_count = buffer_size - next_frame_position;
-
-                if unused_byte_count > 0 {
-                    for idx in 0 .. unused_byte_count {
-                        msg.buffer[idx] = msg.buffer[idx + next_frame_position];
-                    }
-                }
-
-                let mut bytes_read = None;
-
-                if next_frame_position == 0 {
-                    bytes_read = Some(msg.reader.read(msg.buffer).unwrap());
-                } else {
-                    let slice = &mut msg.buffer[unused_byte_count .. buffer_size];
-                    bytes_read = Some(msg.reader.read(slice).unwrap());
-                }
-
-                match bytes_read {
-                    None    => return mad_flow::mf_stop,
-                    Some(0) => return mad_flow::mf_stop,
-                    Some(n) => mad_stream_buffer(stream, msg.buffer.as_ptr(), n as u64),
-                }
-            }
-
-            mad_flow::mf_continue
-        }
-
-        #[allow(unused)]
-        extern fn error_callback(msg: &mut mad_message,
-                                 stream: &mad_stream,
-                                 frame: isize) -> mad_flow
-        {
-            mad_flow::mf_continue
-        }
-
-        #[allow(unused)]
-        extern fn output_callback(msg: &mut mad_message,
-                                  header: isize,
-                                  pcm: &mad_pcm) -> mad_flow
-        {
-            msg.frame_count += 1;
-            msg.sender.send(Frame {sample_rate: pcm.sample_rate,
-                                   channels: pcm.channels,
-                                   length: pcm.length,
-                                   samples: pcm.samples});
-            mad_flow::mf_continue
-        }
-
         unsafe {
-            let message = &mut mad_message {
+            let mut message = MadMessage {
                 buffer: &mut input_buffer,
                 reader: &mut reader,
                 sender: &tx,
-                frame_count: 0,
             };
+            let message_ptr = &mut message as *mut _ as *mut c_void;
             let mut decoder: mad_decoder = Default::default();
             mad_decoder_init(&mut decoder,
-                             message,
+                             message_ptr,
                              input_callback,
                              empty_callback,
                              empty_callback,
@@ -249,7 +252,6 @@ pub fn decode<T>(mut reader: T) -> Receiver<Frame>
 #[test]
 fn data_sizes() {
     use std::mem::size_of;
-    assert_eq!(size_of::<isize>(), 8);
     assert_eq!(size_of::<mad_bitptr>(), 16);
     assert_eq!(size_of::<mad_error>(), 4);
     assert_eq!(size_of::<mad_decoder>(), 88);
