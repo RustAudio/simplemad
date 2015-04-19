@@ -35,6 +35,17 @@ impl Decoder {
     }
 }
 
+impl Iterator for Decoder {
+    type Item = Result<Frame, MadError>;
+    fn next(&mut self) -> Option<Result<Frame, MadError>> {
+        match self.get_frame() {
+            Err(Error::Recv(e)) => None,
+            Err(Error::Mad(e)) => Some(Err(e)),
+            Ok(frame) => Some(Ok(frame)),
+        }
+    }
+}
+
 #[allow(unused, improper_ctypes)]
 #[link(name = "mad")]
 extern {
@@ -291,13 +302,20 @@ fn test_short_file() {
     use std::fs::File;
     let path = Path::new("test_samples/tailtoddle_lo.mp3");
     let f = File::open(&path).unwrap();
-    let decoder = decode(f);
+    let decoder = Decoder::new(Box::new(f));
     let mut frame_count = 0;
     let mut error_count = 0;
-    for frame in decoder.iter() {
-        match frame {
-            Ok(_) => frame_count += 1,
+
+    for item in decoder {
+        match item {
             Err(_) => error_count += 1,
+            Ok(f) => {
+                frame_count += 1;
+                println!("Frame data: {}, {}, {}", f.sample_rate, f.channels, f.length);
+                for sample in f.samples[0].iter() {
+                    println!("{}", sample);
+                }
+            }
         }
     }
     assert_eq!(frame_count, 1656);
