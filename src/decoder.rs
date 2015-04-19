@@ -20,6 +20,7 @@ struct Decoder {
 }
 
 impl Decoder {
+    #[allow(dead_code)]
     fn new(reader: Box<io::Read + Send + 'static>) -> Decoder {
         Decoder {
             rx: Box::new(decode(reader)),
@@ -39,7 +40,7 @@ impl Iterator for Decoder {
     type Item = Result<Frame, MadError>;
     fn next(&mut self) -> Option<Result<Frame, MadError>> {
         match self.get_frame() {
-            Err(Error::Recv(e)) => None,
+            Err(Error::Recv(_)) => None,
             Err(Error::Mad(e)) => Some(Err(e)),
             Ok(frame) => Some(Ok(frame)),
         }
@@ -51,17 +52,17 @@ impl Iterator for Decoder {
 extern {
     fn mad_decoder_init(decoder: *mut MadDecoder,
                         message: *mut c_void,
-                        input_callback: extern fn(message: *mut MadMessage,
+                        input_cb: extern fn(message: *mut MadMessage,
                                                   stream: &MadStream) -> MadFlow,
-                        header_callback: extern fn(),
-                        filter_callback: extern fn(),
-                        output_callback: extern fn(message: *mut MadMessage,
+                        header_cb: extern fn(),
+                        filter_cb: extern fn(),
+                        output_cb: extern fn(message: *mut MadMessage,
                                                    header: c_int,
                                                    pcm: &MadPcm) -> MadFlow,
-                        error_callback: extern fn(message: *mut MadMessage,
+                        error_cb: extern fn(message: *mut MadMessage,
                                                   stream: &MadStream,
                                                   frame: c_int) -> MadFlow,
-                        message_callback: extern fn());
+                        message_cb: extern fn());
     #[allow(dead_code)]
     fn mad_decoder_run(input: &mut MadDecoder, mode: MadDecoderMode) -> c_int;
     fn mad_stream_buffer(stream: &MadStream, buf_start: *const u8, buf_length: size_t);
@@ -191,16 +192,16 @@ pub struct Frame {
     pub sample_rate: u32,
     pub channels: uint16_t,
     pub length: uint16_t,
-    pub samples: [[i32; 1152]; 2],
+    pub samples: Vec<Vec<i32>>,
 }
 
 #[allow(unused)]
-extern fn empty_callback() {
+extern fn empty_cb() {
 
 }
 
 #[allow(unused)]
-extern fn input_callback (msg: *mut MadMessage, stream: &MadStream) -> MadFlow {
+extern fn input_cb (msg: *mut MadMessage, stream: &MadStream) -> MadFlow {
     unsafe {
         let buffer_size = (*msg).buffer.len();
         let next_frame_position = (stream.next_frame - stream.buffer) as usize;
@@ -232,7 +233,7 @@ extern fn input_callback (msg: *mut MadMessage, stream: &MadStream) -> MadFlow {
 }
 
 #[allow(unused)]
-extern fn error_callback(msg: *mut MadMessage,
+extern fn error_cb(msg: *mut MadMessage,
                          stream: &MadStream,
                          frame: c_int) -> MadFlow
 {
@@ -244,22 +245,26 @@ extern fn error_callback(msg: *mut MadMessage,
 }
 
 #[allow(unused)]
-extern fn output_callback(msg: *mut MadMessage,
-                          header: c_int,
-                          pcm: &MadPcm) -> MadFlow
-{
+extern fn output_cb(msg: *mut MadMessage, header: c_int, pcm: &MadPcm) -> MadFlow {
+    let mut samples: Vec<Vec<i32>> = Vec::new();
+    for channel_idx in 0..pcm.channels as usize {
+        let mut channel: Vec<i32> = Vec::new();
+        for sample_idx in 0 .. pcm.length as usize {
+            channel.push(pcm.samples[channel_idx][sample_idx]);
+        }
+        samples.push(channel);
+    }
+    let frame = Ok(Frame {sample_rate: pcm.sample_rate,
+                          channels: pcm.channels,
+                          length: pcm.length,
+                          samples: samples});
     unsafe {
-        let frame = Ok(Frame {sample_rate: pcm.sample_rate,
-                              channels: pcm.channels,
-                              length: pcm.length,
-                              samples: pcm.samples});
         (*msg).sender.send(frame);
     }
     MadFlow::Continue
 }
 
-#[allow(unused)]
-pub fn decode<T>(mut reader: T) -> Receiver<Result<Frame, MadError>>
+fn decode<T>(mut reader: T) -> Receiver<Result<Frame, MadError>>
     where T: io::Read + Send + 'static {
     let input_buffer = Box::new([0u8; 16384]);
     let (tx, rx) = mpsc::sync_channel::<Result<Frame, MadError>>(2);
@@ -274,12 +279,12 @@ pub fn decode<T>(mut reader: T) -> Receiver<Result<Frame, MadError>>
             let mut decoder: MadDecoder = Default::default();
             mad_decoder_init(&mut decoder,
                              message_ptr,
-                             input_callback,
-                             empty_callback,
-                             empty_callback,
-                             output_callback,
-                             error_callback,
-                             empty_callback);
+                             input_cb,
+                             empty_cb,
+                             empty_cb,
+                             output_cb,
+                             error_cb,
+                             empty_cb);
             mad_decoder_run(&mut decoder, MadDecoderMode::Sync);
         }
     });
@@ -311,10 +316,9 @@ fn test_short_file() {
             Err(_) => error_count += 1,
             Ok(f) => {
                 frame_count += 1;
-                println!("Frame data: {}, {}, {}", f.sample_rate, f.channels, f.length);
-                for sample in f.samples[0].iter() {
-                    println!("{}", sample);
-                }
+                assert_eq!(f.sample_rate, 11025);
+                assert_eq!(f.channels, 2);
+                assert_eq!(f.length, 576);
             }
         }
     }
