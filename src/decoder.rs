@@ -10,10 +10,6 @@ use libc::types::common::c95::c_void;
 use libc::types::common::c99::*;
 use libc::types::os::arch::c95::*;
 
-#[allow(unused)]
-#[repr(C)]
-static mut input_buffer: [u8; 16384] = [0; 16384];
-
 #[allow(unused, improper_ctypes)]
 #[link(name = "mad")]
 extern {
@@ -114,7 +110,7 @@ struct MadPcm {
 
 #[allow(unused)]
 struct MadMessage<'a> {
-    buffer: &'static mut [u8; 16384],
+    buffer: Box<[u8; 16384]>,
     reader: &'a mut (io::Read + 'a),
     sender: &'a SyncSender<Result<Frame, Error>>,
 }
@@ -183,7 +179,7 @@ extern fn input_callback (msg: *mut MadMessage, stream: &MadStream) -> MadFlow {
         let mut bytes_read = None;
 
         if next_frame_position == 0 {
-            bytes_read = Some((*msg).reader.read((*msg).buffer).unwrap());
+            bytes_read = Some((*msg).reader.read(&mut *(*msg).buffer).unwrap());
         } else {
             let slice = &mut (*msg).buffer[unused_byte_count .. buffer_size];
             bytes_read = Some((*msg).reader.read(slice).unwrap());
@@ -229,11 +225,12 @@ extern fn output_callback(msg: *mut MadMessage,
 #[allow(unused)]
 pub fn decode<T>(mut reader: T) -> Receiver<Result<Frame, Error>>
     where T: io::Read + Send + 'static {
+    let input_buffer = Box::new([0u8; 16384]);
     let (tx, rx) = mpsc::sync_channel::<Result<Frame, Error>>(2);
     thread::spawn(move || {
         unsafe {
             let mut message = MadMessage {
-                buffer: &mut input_buffer,
+                buffer: input_buffer,
                 reader: &mut reader,
                 sender: &tx,
             };
