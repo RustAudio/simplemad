@@ -493,8 +493,6 @@ mod test {
     #[test]
     fn test_readme_code () {
         let decoder = create_decoder("sample_mp3s/constant_joint_stereo_128.mp3");
-        let mut frame_count = 0;
-        let mut error_count = 0;
 
         for item in decoder {
             match item {
