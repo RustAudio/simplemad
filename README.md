@@ -1,4 +1,4 @@
-simple-mad is a simple interface for the MPEG audio decoding library libmad. simple-mad is useful for those who need to decode MP3 or other MPEG audio files in full.
+simple-mad is a simple interface for libmad, the MPEG audio decoding library. simple-mad is useful for those who need to decode MP3 or other MPEG audio files in full.
 
 [![Build Status](https://travis-ci.org/bendykst/simple-mad.rs.svg)](https://travis-ci.org/bendykst/simple-mad.rs)
 
