@@ -12,7 +12,7 @@ let f = File::open(&path).unwrap();
 let decoder = Decoder::new(Box::new(f));
 ```
 
-`Decoder` implements `Iterator` and yields a sequence of `Option<Result<Frame, MadError>>`.
+`Decoder` implements `Iterator` and yields a sequence of `Result<Frame, MadError>`.
 
 ```Rust
 for item in decoder {
