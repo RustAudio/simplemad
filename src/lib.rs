@@ -489,4 +489,24 @@ mod test {
         assert_eq!(error_count, 0);
         assert_eq!(frame_count, 193);
     }
+
+    #[test]
+    fn test_readme_code () {
+        let decoder = create_decoder("sample_mp3s/constant_joint_stereo_128.mp3");
+        let mut frame_count = 0;
+        let mut error_count = 0;
+
+        for item in decoder {
+            match item {
+                Err(e) => {
+                  println!("Error: {:?}", e);
+                },
+                Ok(frame) => {
+                  println!("Frame sample rate: {}", frame.sample_rate);
+                  println!("First audio sample (left channel): {}", frame.samples[0][0]);
+                  println!("First audio sample (right channel): {}", frame.samples[1][0]);
+                }
+            }
+        }
+    }
 }
