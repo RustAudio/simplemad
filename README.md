@@ -6,28 +6,28 @@ simple-mad is a simple interface for the MPEG audio decoding library libmad. sim
 
 Create a `Decoder` from a boxed `Reader`.
 
-    ```Rust
-    let path = Path::new(path_str);
-    let f = File::open(&path).unwrap();
-    let decoder = Decoder::new(Box::new(f));
-    ```
+```Rust
+let path = Path::new(path_str);
+let f = File::open(&path).unwrap();
+let decoder = Decoder::new(Box::new(f));
+```
 
 `Decoder` implements `Iterator` and yields a sequence of `Option<Result<Frame, MadError>>`.
 
-    ```Rust
-    for item in decoder {
-        match item {
-            Err(e) => {
-              println!("Error: {:?}", e);
-            },
-            Ok(frame) => {
-              println!("Frame sample rate: {}", frame.sample_rate);
-              println!("First audio sample (left channel): {}", frame.samples[0][0]);
-              println!("First audio sample (right channel): {}", frame.samples[1][0]);
-            }
+```Rust
+for item in decoder {
+    match item {
+        Err(e) => {
+          println!("Error: {:?}", e);
+        },
+        Ok(frame) => {
+          println!("Frame sample rate: {}", frame.sample_rate);
+          println!("First audio sample (left channel): {}", frame.samples[0][0]);
+          println!("First audio sample (right channel): {}", frame.samples[1][0]);
         }
     }
-    ```
+}
+```
 
 libmad samples are signed 32-bit integers. MP3 files often begin with metadata, which will cause libmad to complain. It is safe to ignore errors until libmad reaches audio data and starts producing frames.
 
