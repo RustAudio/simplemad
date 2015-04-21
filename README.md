@@ -2,7 +2,7 @@ simple-mad is a minimalistic interface for the MPEG audio decoding library libma
 
 # Use
 
-Create a `Decoder` from a boxed `reader`.
+Create a `Decoder` from a boxed `Reader`.
 
     let path = Path::new(path_str);
     let f = File::open(&path).unwrap();
