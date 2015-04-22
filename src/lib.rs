@@ -5,7 +5,7 @@ use std::io::Read;
 use std::sync::mpsc;
 use std::sync::mpsc::{SyncSender, Receiver, RecvError};
 use std::default::Default;
-use std::marker::Send;
+use std::marker::{Send, Sized};
 use std::option::Option::{None, Some};
 use libc::types::common::c95::c_void;
 use libc::types::common::c99::*;
@@ -23,7 +23,7 @@ pub struct Decoder {
 
 impl Decoder {
     #[allow(dead_code)]
-    pub fn new(reader: Box<io::Read + Send + 'static>) -> Decoder {
+    pub fn new<T>(reader: T) -> Decoder where T: io::Read + Send + Sized + 'static {
         Decoder {
             rx: decode(reader),
         }
@@ -303,7 +303,7 @@ mod test {
         use std::fs::File;
         let path = Path::new(path_str);
         let f = File::open(&path).unwrap();
-        Decoder::new(Box::new(f))
+        Decoder::new(f)
     }
 
     #[test]
