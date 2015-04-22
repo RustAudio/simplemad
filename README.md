@@ -4,18 +4,14 @@
 
 simplemad is a simple interface for libmad, the MPEG audio decoding library. simplemad is useful for those who need to decode MP3 or other MPEG audio files in full.
 
-# Installation
-
-First, install libmad. Links to the source can be found below. It might be necessary to apply the patch found in [this guide](http://www.linuxfromscratch.org/blfs/view/svn/multimedia/libmad.html). Then add `simplemad = "0.2.0"` to the list of dependencies in your Cargo.toml.
-
 # Use
 
 Create a `Decoder` from a `Reader`.
 
 ```Rust
 let path = Path::new("some.mp3");
-let f = File::open(&path).unwrap();
-let decoder = Decoder::new(f);
+let file = File::open(&path).unwrap();
+let decoder = Decoder::new(file);
 ```
 
 `Decoder` implements `Iterator` and yields a sequence of `Result<Frame, MadError>`.
@@ -36,6 +32,10 @@ for item in decoder {
 ```
 
 libmad samples are signed 32-bit integers. MP3 files often begin with metadata, which will cause libmad to complain. It is safe to ignore errors until libmad reaches audio data and starts producing frames.
+
+# Installation
+
+First, install libmad. Links to the source can be found below. It might be necessary to apply the patch found in [this guide](http://www.linuxfromscratch.org/blfs/view/svn/multimedia/libmad.html). Then add `simplemad = "0.2.0"` to the list of dependencies in your Cargo.toml.
 
 # Documentation
 
