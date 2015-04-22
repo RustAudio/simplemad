@@ -1,4 +1,5 @@
-[![](http://meritbadge.herokuapp.com/simplemad)](https://crates.io/crates/simplemad)
+[![](https://img.shields.io/crates/v/simplemad.svg)](https://crates.io/crates/simplemad)
+
 [![Build Status](https://travis-ci.org/bendykst/simple-mad.rs.svg)](https://travis-ci.org/bendykst/simple-mad.rs)
 
 simplemad is a simple interface for libmad, the MPEG audio decoding library. simplemad is useful for those who need to decode MP3 or other MPEG audio files in full.
