@@ -1,4 +1,4 @@
-simple-mad is a simple interface for libmad, the MPEG audio decoding library. simple-mad is useful for those who need to decode MP3 or other MPEG audio files in full.
+simplemad is a simple interface for libmad, the MPEG audio decoding library. simplemad is useful for those who need to decode MP3 or other MPEG audio files in full.
 
 [![Build Status](https://travis-ci.org/bendykst/simple-mad.rs.svg)](https://travis-ci.org/bendykst/simple-mad.rs)
 
@@ -7,7 +7,7 @@ simple-mad is a simple interface for libmad, the MPEG audio decoding library. si
 Create a `Decoder` from a boxed `Reader`.
 
 ```Rust
-let path = Path::new(path_str);
+let path = Path::new("some.mp3");
 let f = File::open(&path).unwrap();
 let decoder = Decoder::new(Box::new(f));
 ```
