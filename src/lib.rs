@@ -545,9 +545,7 @@ mod test {
 
         for item in decoder {
             match item {
-                Err(e) => {
-                  println!("Error: {:?}", e);
-                },
+                Err(e) => println!("Error: {:?}", e),
                 Ok(frame) => {
                   println!("Frame sample rate: {}", frame.sample_rate);
                   println!("First audio sample (left channel): {}", frame.samples[0][0]);

@@ -14,14 +14,12 @@ let file = File::open(&path).unwrap();
 let decoder = Decoder::new(file);
 ```
 
-`Decoder` implements `Iterator` and yields a sequence of `Result<Frame, MadError>`.
+`Decoder` implements `Iterator` and yields `Result<Frame, MadError>`.
 
 ```Rust
 for item in decoder {
     match item {
-        Err(e) => {
-          println!("Error: {:?}", e);
-        },
+        Err(e) => println!("Error: {:?}", e),
         Ok(frame) => {
           println!("Frame sample rate: {}", frame.sample_rate);
           println!("First audio sample (left channel): {}", frame.samples[0][0]);
