@@ -79,36 +79,55 @@ enum MadFlow {
     Ignore   = 0x0020,    // ignore the current frame
 }
 
+/// libmad errors
 #[allow(unused)]
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub enum MadError {
-  None           = 0x0000,    // no error
-
-  BufLen         = 0x0001,    // input buffer too small (or eof)
-  BufPtr         = 0x0002,    // invalid (null) buffer pointer
-
-  NoMem          = 0x0031,    // not enough memory
-
-  LostSync       = 0x0101,    // lost synchronization
-  BadLayer       = 0x0102,    // reserved header layer value
-  BadBitRate     = 0x0103,    // forbidden bitrate value
-  BadSampleRate  = 0x0104,    // reserved sample frequency value
-  BadEmphasis    = 0x0105,    // reserved emphasis value
-
-  BadCRC         = 0x0201,    // crc check failed
-  BadBitAlloc    = 0x0211,    // forbidden bit allocation value
-  BadScaleFactor = 0x0221,    // bad scalefactor index
-  BadMode        = 0x0222,    // bad bitrate/mode combination
-  BadFrameLen    = 0x0231,    // bad frame length
-  BadBigValues   = 0x0232,    // bad big_values count
-  BadBlockType   = 0x0233,    // reserved block_type
-  BadScFSI       = 0x0234,    // bad scalefactor selection info
-  BadDataPtr     = 0x0235,    // bad main_data_begin pointer
-  BadPart3Len    = 0x0236,    // bad audio data length
-  BadHuffTable   = 0x0237,    // bad huffman table select
-  BadHuffData    = 0x0238,    // huffman data overrun
-  BadStereo      = 0x0239,    // incompatible block_type for js
+    /// no error
+    None           = 0x0000,
+    /// input buffer too small (or eof)
+    BufLen         = 0x0001,
+    /// invalid (null) buffer pointer
+    BufPtr         = 0x0002,
+    /// not enough memory
+    NoMem          = 0x0031,
+    /// lost synchronization
+    LostSync       = 0x0101,
+    /// reserved header layer value
+    BadLayer       = 0x0102,
+    /// forbidden bitrate value
+    BadBitRate     = 0x0103,
+    /// reserved sample frequency value
+    BadSampleRate  = 0x0104,
+    /// reserved emphasis value
+    BadEmphasis    = 0x0105,
+    /// crc check failed
+    BadCRC         = 0x0201,
+    /// forbidden bit allocation value
+    BadBitAlloc    = 0x0211,
+    /// bad scalefactor index
+    BadScaleFactor = 0x0221,
+    /// bad bitrate/mode combination
+    BadMode        = 0x0222,
+    /// bad frame length
+    BadFrameLen    = 0x0231,
+    /// bad big_values count
+    BadBigValues   = 0x0232,
+    /// reserved block_type
+    BadBlockType   = 0x0233,
+    /// bad scalefactor selection info
+    BadScFSI       = 0x0234,
+    /// bad main_data_begin pointer
+    BadDataPtr     = 0x0235,
+    /// bad audio data length
+    BadPart3Len    = 0x0236,
+    /// bad huffman table select
+    BadHuffTable   = 0x0237,
+    /// huffman data overrun
+    BadHuffData    = 0x0238,
+    /// incompatible block_type for joint stereo
+    BadStereo      = 0x0239,
 }
 
 #[allow(unused)]
