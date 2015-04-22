@@ -1,6 +1,6 @@
 [package]
-name = "rustmad"
-version = "0.0.1"
+name = "simple-mad"
+version = "0.1.0"
 authors = ["Benjamin Dykstra <bendykst@gmail.com>"]
 
 [dependencies]
