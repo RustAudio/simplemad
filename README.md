@@ -1,6 +1,11 @@
+[![](http://meritbadge.herokuapp.com/hyper)](https://crates.io/crates/simplemad)
+[![Build Status](https://travis-ci.org/bendykst/simple-mad.rs.svg)](https://travis-ci.org/bendykst/simple-mad.rs)
+
 simplemad is a simple interface for libmad, the MPEG audio decoding library. simplemad is useful for those who need to decode MP3 or other MPEG audio files in full.
 
-[![Build Status](https://travis-ci.org/bendykst/simple-mad.rs.svg)](https://travis-ci.org/bendykst/simple-mad.rs)
+# Installation
+
+First, install libmad. Links to the source can be found below. It might be necessary to apply the patch found in [this guide](http://www.linuxfromscratch.org/blfs/view/svn/multimedia/libmad.html). Then add `simplemad = "0.1.0"` to the list of dependencies in your Cargo.toml.
 
 # Use
 
