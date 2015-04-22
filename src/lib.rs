@@ -18,14 +18,14 @@ enum Error {
 }
 
 pub struct Decoder {
-    rx: Box<Receiver<Result<Frame, MadError>>>,
+    rx: Receiver<Result<Frame, MadError>>,
 }
 
 impl Decoder {
     #[allow(dead_code)]
     pub fn new(reader: Box<io::Read + Send + 'static>) -> Decoder {
         Decoder {
-            rx: Box::new(decode(reader)),
+            rx: decode(reader),
         }
     }
 
