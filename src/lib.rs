@@ -250,7 +250,7 @@ extern fn error_cb(msg: *mut MadMessage, stream: &MadStream, frame: c_int) -> Ma
 extern fn output_cb(msg: *mut MadMessage, header: c_int, pcm: &MadPcm) -> MadFlow {
     let mut samples: Vec<Vec<i32>> = Vec::new();
     for channel_idx in 0..pcm.channels as usize {
-        let mut channel: Vec<i32> = Vec::new();
+        let mut channel: Vec<i32> = Vec::with_capacity(pcm.length as usize);
         for sample_idx in 0 .. pcm.length as usize {
             channel.push(pcm.samples[channel_idx][sample_idx]);
         }
@@ -302,8 +302,8 @@ mod test {
         use std::path::Path;
         use std::fs::File;
         let path = Path::new(path_str);
-        let f = File::open(&path).unwrap();
-        Decoder::new(f)
+        let file = File::open(&path).unwrap();
+        Decoder::new(file)
     }
 
     #[test]
