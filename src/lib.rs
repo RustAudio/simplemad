@@ -1,3 +1,44 @@
+/*!
+This crate provides an interface to libmad, allowing the decoding of MPEG
+audio files, including MP3s. To begin decoding, create a new `Decoder` from
+a byte-oriented source. `Decoder` implements the `Iterator` interface,
+allowing convenient sequential access to the output of libmad.
+
+`Decoder` yields type `Result<Frame, MadError>`. Frame and MadError correspond
+to libmad's struct types, mad_pcm and mad_error respectively. Samples are signed
+32 bit integers and are organized into channels. For stereo, the left channel is
+channel 0.
+
+# Examples
+```
+use simplemad::Decoder;
+use std::fs::File;
+use std::path::Path;
+
+let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
+let file = File::open(&path).unwrap();
+let mut decoder = Decoder::new(file);
+
+// Take frames one at a time
+let first_decode_result = decoder.next();
+let second_decode_result = decoder.next();
+
+// Read the rest of the frames using a loop
+for item in decoder {
+    match item {
+        Err(e) => println!("Error: {:?}", e),
+        Ok(frame) => {
+          println!("Frame sample rate: {}", frame.sample_rate);
+          println!("First audio sample (left channel): {}", frame.samples[0][0]);
+          println!("First audio sample (right channel): {}", frame.samples[1][0]);
+        }
+    }
+}
+```
+*/
+
+#![crate_name = "simplemad"]
+
 extern crate libc;
 use std::thread;
 use std::io;
@@ -11,6 +52,7 @@ use libc::types::common::c95::c_void;
 use libc::types::common::c99::*;
 use libc::types::os::arch::c95::*;
 use std::cmp::min;
+
 
 enum Error {
     Mad(MadError),
@@ -67,7 +109,9 @@ extern {
                         message_cb: extern fn());
     fn mad_decoder_run(decoder: &mut MadDecoder, mode: MadDecoderMode) -> c_int;
     fn mad_decoder_finish(decoder: &mut MadDecoder) -> c_int;
-    fn mad_stream_buffer(stream: &MadStream, buf_start: *const u8, buf_length: size_t);
+    fn mad_stream_buffer(stream: &MadStream,
+                         buf_start: *const u8,
+                         buf_samples: size_t);
 }
 
 /// libmad callbacks return MadFlow values, which are used to control the decoding process
@@ -242,9 +286,7 @@ struct MadDecoder {
 
 #[allow(unused)]
 pub struct Frame {
-    pub sample_rate: u32,
-    pub channels: u8,
-    pub length: u16,
+    pub sample_rate: usize,
     pub samples: Vec<Vec<i32>>,
 }
 
@@ -305,9 +347,7 @@ extern fn output_cb(msg: *mut MadMessage, header: c_int, pcm: &MadPcm) -> MadFlo
         }
         samples.push(channel);
     }
-    let frame = Ok(Frame {sample_rate: pcm.sample_rate,
-                          channels: pcm.channels as u8,
-                          length: pcm.length as u16,
+    let frame = Ok(Frame {sample_rate: pcm.sample_rate as usize,
                           samples: samples});
     unsafe {
         (*msg).sender.send(frame);
@@ -369,8 +409,8 @@ mod test {
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
-                    assert_eq!(f.channels, 2);
-                    assert_eq!(f.length, 1152);
+                    assert_eq!(f.samples.len(), 2);
+                    assert_eq!(f.samples[0].len(), 1152);
                 }
             }
         }
@@ -392,8 +432,8 @@ mod test {
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
-                    assert_eq!(f.channels, 2);
-                    assert_eq!(f.length, 1152);
+                    assert_eq!(f.samples.len(), 2);
+                    assert_eq!(f.samples[0].len(), 1152);
                 }
             }
         }
@@ -415,8 +455,8 @@ mod test {
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
-                    assert_eq!(f.channels, 2);
-                    assert_eq!(f.length, 1152);
+                    assert_eq!(f.samples.len(), 2);
+                    assert_eq!(f.samples[0].len(), 1152);
                 }
             }
         }
@@ -438,8 +478,8 @@ mod test {
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
-                    assert_eq!(f.channels, 2);
-                    assert_eq!(f.length, 1152);
+                    assert_eq!(f.samples.len(), 2);
+                    assert_eq!(f.samples[0].len(), 1152);
                 }
             }
         }
@@ -461,8 +501,8 @@ mod test {
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
-                    assert_eq!(f.channels, 2);
-                    assert_eq!(f.length, 1152);
+                    assert_eq!(f.samples.len(), 2);
+                    assert_eq!(f.samples[0].len(), 1152);
                 }
             }
         }
@@ -484,8 +524,8 @@ mod test {
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
-                    assert_eq!(f.channels, 2);
-                    assert_eq!(f.length, 1152);
+                    assert_eq!(f.samples.len(), 2);
+                    assert_eq!(f.samples[0].len(), 1152);
                 }
             }
         }
@@ -507,8 +547,8 @@ mod test {
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 24000);
-                    assert_eq!(f.channels, 2);
-                    assert_eq!(f.length, 576);
+                    assert_eq!(f.samples.len(), 2);
+                    assert_eq!(f.samples[0].len(), 576);
                 }
             }
         }
@@ -530,8 +570,8 @@ mod test {
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
-                    assert_eq!(f.channels, 1);
-                    assert_eq!(f.length, 1152);
+                    assert_eq!(f.samples.len(), 1);
+                    assert_eq!(f.samples[0].len(), 1152);
                 }
             }
         }
