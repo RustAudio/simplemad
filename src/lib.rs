@@ -1,13 +1,17 @@
 /*!
 This crate provides an interface to libmad, allowing the decoding of MPEG
-audio files, including MP3s. To begin decoding, create a new `Decoder` from
-a byte-oriented source. `Decoder` implements the `Iterator` interface,
-allowing convenient sequential access to the output of libmad.
+audio files, including MP3s.
 
-`Decoder` yields type `Result<Frame, MadError>`. Frame and MadError correspond
-to libmad's struct types, mad_pcm and mad_error respectively. Samples are signed
-32 bit integers and are organized into channels. For stereo, the left channel is
-channel 0.
+To begin, create a new `Decoder` from a byte-oriented source.  `Decoder`
+implements the `Iterator` interface, allowing convenient sequential access to
+the output of libmad.  `Decoder` yields type `Result<Frame, MadError>`. `Frame`
+and `MadError` correspond to libmad's struct types `mad_pcm` and `mad_error`,
+respectively. Samples are signed 32 bit integers and are organized into channels.
+For stereo, the left channel is channel 0.
+
+MP3 files often begin with metadata, which will cause libmad to complain. It
+is safe to ignore errors until libmad reaches audio data and starts producing
+frames.
 
 # Examples
 ```
@@ -284,9 +288,13 @@ struct MadDecoder {
     message_func: size_t,
 }
 
+/// A decoded frame
 #[allow(unused)]
 pub struct Frame {
+    /// Number of samples per second
     pub sample_rate: usize,
+    /// Samples are signed 32 bit integers and are organized into channels.
+    /// For stereo, the left channel is channel 0.
     pub samples: Vec<Vec<i32>>,
 }
 

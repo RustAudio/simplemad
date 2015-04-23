@@ -37,7 +37,7 @@ First, install libmad. Links to the source can be found below. It might be neces
 
 # Documentation
 
-TODO
+http://bendykst.github.io/doc/simplemad/index.html
 
 # Dependencies
 

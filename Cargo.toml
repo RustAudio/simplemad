@@ -5,6 +5,7 @@ authors = ["Benjamin Dykstra <bendykst@gmail.com>"]
 description = "An interface for libmad, the MPEG audio decoding library"
 repository = "https://github.com/bendykst/simple-mad.rs"
 readme = "README.md"
+documentation = "http://bendykst.github.io/doc/simplemad/index.html"
 keywords = ["mpeg", "mp3", "libmad"]
 license = "MIT"
 
