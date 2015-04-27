@@ -14,7 +14,7 @@ let file = File::open(&path).unwrap();
 let decoder = Decoder::new(file);
 ```
 
-`Decoder` implements `Iterator` and yields `Result<Frame, MadError>`.
+`Decoder` implements `Iterator` and yields `Result<Frame>`.
 
 ```Rust
 for item in decoder {
