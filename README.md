@@ -14,7 +14,7 @@ let file = File::open(&path).unwrap();
 let decoder = Decoder::new(file);
 ```
 
-`Decoder` implements `Iterator` and yields `Result<Frame>`.
+`Decoder` implements `Iterator`, yielding `Result<Frame, MadError>`.
 
 ```Rust
 for item in decoder {
@@ -33,7 +33,7 @@ libmad samples are signed 32-bit integers. MP3 files often begin with metadata, 
 
 # Installation
 
-First, install libmad. Links to the source can be found below. It might be necessary to apply the patch found in [this guide](http://www.linuxfromscratch.org/blfs/view/svn/multimedia/libmad.html). Then add `simplemad = "0.2.2"` to the list of dependencies in your Cargo.toml.
+First, install libmad. Links to the source can be found below. It might be necessary to apply the patch found in [this guide](http://www.linuxfromscratch.org/blfs/view/svn/multimedia/libmad.html). Then add `simplemad = "0.2.3"` to the list of dependencies in your Cargo.toml.
 
 # Documentation
 
