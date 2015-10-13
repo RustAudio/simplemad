@@ -2,22 +2,32 @@
 
 [![Build Status](https://travis-ci.org/bendykst/simple-mad.rs.svg?branch=master)](https://travis-ci.org/bendykst/simple-mad.rs)
 
-simplemad is a simple interface for libmad, the MPEG audio decoding library. simplemad is useful for those who need to decode MP3 or other MPEG audio files in full.
+simplemad is a simple interface for libmad, the MPEG audio decoding library.
 
-# Use
+# Use and examples
 
-Create a `Decoder` from a `Reader`.
+`simplemad::decode` takes a byte-oriented source and returns a channel that
+yields `Result<Frame, MadError>`. If you only need to decode part of a file,
+you can also use `simplemad::decode_interval`.
+
+`Frame` and `MadError` correspond to libmad's struct types `mad_pcm` and
+`mad_error`, respectively. Samples are signed 32 bit integers and are organized
+into channels. For stereo, the left channel is channel 0.
+
+MP3 files often begin with metadata, which will cause libmad to produce errors.
+It is safe to ignore these errors until libmad reaches audio data and starts
+producing frames.
 
 ```Rust
-let path = Path::new("some.mp3");
+use simplemad::decode;
+use std::fs::File;
+use std::path::Path;
+
+let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
 let file = File::open(&path).unwrap();
-let decoder = Decoder::new(file);
-```
+let mut decoder = decode(file);
 
-`Decoder` implements `Iterator`, yielding `Result<Frame, MadError>`.
-
-```Rust
-for item in decoder {
+for item in decoder.iter() {
     match item {
         Err(e) => println!("Error: {:?}", e),
         Ok(frame) => {
@@ -29,11 +39,15 @@ for item in decoder {
 }
 ```
 
-libmad samples are signed 32-bit integers. MP3 files often begin with metadata, which will cause libmad to complain. It is safe to ignore errors until libmad reaches audio data and starts producing frames.
+To decode from 30 seconds to 60 seconds, use `decode_interval` and provide the start and end time in milliseconds.
+
+```Rust
+let mut partial_decoder = decode_interval(file, 30_000_f32, 60_000_f32);
+```
 
 # Installation
 
-First, install libmad. Links to the source can be found below. It might be necessary to apply the patch found in [this guide](http://www.linuxfromscratch.org/blfs/view/svn/multimedia/libmad.html). Then add `simplemad = "0.2.3"` to the list of dependencies in your Cargo.toml.
+First, install libmad. Links to the source can be found below. It might be necessary to apply the patch found in [this guide](http://www.linuxfromscratch.org/blfs/view/svn/multimedia/libmad.html). Then add `simplemad = "0.3.0"` to the list of dependencies in your Cargo.toml.
 
 # Documentation
 

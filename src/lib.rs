@@ -93,7 +93,7 @@ pub fn decode<T>(mut reader: T) -> Receiver<Result<Frame, MadError>>
     rx
 }
 
-/// Decode part of a file from start_time to end_time, measured in milliseconds
+/// Decode part of a file from `start_time` to `end_time`, measured in milliseconds
 pub fn decode_interval<T>(mut reader: T, start_time: f32, end_time: f32)
     -> Receiver<Result<Frame, MadError>> where T: io::Read + Send + 'static {
     let (tx, rx) = mpsc::sync_channel::<Result<Frame, MadError>>(2);
