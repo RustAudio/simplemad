@@ -2,33 +2,27 @@
 This crate provides an interface to libmad, allowing the decoding of MPEG
 audio files, including MP3s.
 
-To begin, create a new `Decoder` from a byte-oriented source.  `Decoder`
-implements the `Iterator` interface, allowing convenient sequential access to
-the output of libmad.  `Decoder` yields type `Result<Frame, MadError>`. `Frame`
-and `MadError` correspond to libmad's struct types `mad_pcm` and `mad_error`,
-respectively. Samples are signed 32 bit integers and are organized into channels.
-For stereo, the left channel is channel 0.
+`simplemad::decode` takes a byte-oriented source and returns a channel that
+yields `Result<Frame, MadError>`. `Frame` and `MadError` correspond to libmad's
+struct types `mad_pcm` and `mad_error`, respectively. Samples are signed 32 bit
+integers and are organized into channels. For stereo, the left channel is
+channel 0.
 
-MP3 files often begin with metadata, which will cause libmad to complain. It
-is safe to ignore errors until libmad reaches audio data and starts producing
-frames.
+MP3 files often begin with metadata, which will cause libmad to produce errors.
+It is safe to ignore these errors until libmad reaches audio data and starts
+producing frames.
 
 # Examples
 ```
-use simplemad::Decoder;
+use simplemad::decode;
 use std::fs::File;
 use std::path::Path;
 
 let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
 let file = File::open(&path).unwrap();
-let mut decoder = Decoder::new(file);
+let mut decoder = decode(file);
 
-// Take frames one at a time
-let first_decode_result = decoder.next();
-let second_decode_result = decoder.next();
-
-// Read the rest of the frames using a loop
-for item in decoder {
+for item in decoder.iter() {
     match item {
         Err(e) => println!("Error: {:?}", e),
         Ok(frame) => {
@@ -48,59 +42,46 @@ use std::thread;
 use std::io;
 use std::io::Read;
 use std::sync::mpsc;
-use std::sync::mpsc::{SyncSender, Receiver, RecvError};
+use std::sync::mpsc::{SyncSender, Receiver};
 use std::default::Default;
-use std::marker::{Send, Sized};
-use std::option::Option::{None, Some};
+use std::marker::Send;
+use std::option::Option::None;
 use libc::types::common::c95::c_void;
 use libc::types::common::c99::*;
 use libc::types::os::arch::c95::*;
 use std::cmp::min;
 
-
-enum Error {
-    Mad(MadError),
-    Recv(RecvError),
+/// A decoded frame
+#[derive(Clone)]
+pub struct Frame {
+    /// Number of samples per second
+    pub sample_rate: usize,
+    /// Samples are signed 32 bit integers and are organized into channels.
+    /// For stereo, the left channel is channel 0.
+    pub samples: Vec<Vec<i32>>,
 }
 
-pub struct Decoder {
-    rx: Receiver<Result<Frame, MadError>>,
-}
-
-impl Decoder {
-    #[allow(dead_code)]
-    pub fn new<T>(reader: T) -> Decoder where T: io::Read + Send + Sized + 'static {
-        Decoder {
-            rx: decode(reader),
-        }
-    }
-
-    fn get_frame(&self) -> Result<Frame, Error> {
-        match self.rx.recv() {
-            Err(e) => Err(Error::Recv(e)),
-            Ok(Err(e)) => Err(Error::Mad(e)),
-            Ok(Ok(frame)) => Ok(frame),
-        }
-    }
-}
-
-fn decode<T>(mut reader: T) -> Receiver<Result<Frame, MadError>>
+/// Decode a file in full
+pub fn decode<T>(mut reader: T) -> Receiver<Result<Frame, MadError>>
     where T: io::Read + Send + 'static {
-    let input_buffer = Box::new([0u8; 32768]);
     let (tx, rx) = mpsc::sync_channel::<Result<Frame, MadError>>(2);
     thread::spawn(move || {
+        let input_buffer = Box::new([0u8; 32768]);
+        let mut decoder: MadDecoder = Default::default();
+        let mut message = MadMessage {
+            buffer: input_buffer,
+            reader: &mut reader,
+            sender: &tx,
+            start_time: None,
+            end_time: None,
+            current_time: 0.0,
+        };
         unsafe {
-            let mut message = MadMessage {
-                buffer: input_buffer,
-                reader: &mut reader,
-                sender: &tx,
-            };
             let message_ptr = &mut message as *mut _ as *mut c_void;
-            let mut decoder: MadDecoder = Default::default();
             mad_decoder_init(&mut decoder,
                              message_ptr,
                              input_cb,
-                             empty_cb,
+                             header_cb,
                              empty_cb,
                              output_cb,
                              error_cb,
@@ -112,32 +93,62 @@ fn decode<T>(mut reader: T) -> Receiver<Result<Frame, MadError>>
     rx
 }
 
-impl Iterator for Decoder {
-    type Item = Result<Frame, MadError>;
-    fn next(&mut self) -> Option<Result<Frame, MadError>> {
-        match self.get_frame() {
-            Err(Error::Recv(_)) => None,
-            Err(Error::Mad(e)) => Some(Err(e)),
-            Ok(frame) => Some(Ok(frame)),
+/// Decode part of a file from start_time to end_time, measured in milliseconds
+pub fn decode_interval<T>(mut reader: T, start_time: f32, end_time: f32)
+    -> Receiver<Result<Frame, MadError>> where T: io::Read + Send + 'static {
+    let (tx, rx) = mpsc::sync_channel::<Result<Frame, MadError>>(2);
+    thread::spawn(move || {
+        let input_buffer = Box::new([0u8; 32768]);
+        let mut decoder: MadDecoder = Default::default();
+        let mut message = MadMessage {
+            buffer: input_buffer,
+            reader: &mut reader,
+            sender: &tx,
+            start_time: Some(start_time),
+            end_time: Some(end_time),
+            current_time: 0.0,
+        };
+        unsafe {
+            let message_ptr = &mut message as *mut _ as *mut c_void;
+            mad_decoder_init(&mut decoder,
+                             message_ptr,
+                             input_cb,
+                             header_cb,
+                             empty_cb,
+                             output_cb,
+                             error_cb,
+                             empty_cb);
+            mad_decoder_run(&mut decoder, MadDecoderMode::Sync);
+            mad_decoder_finish(&mut decoder);
         }
-    }
+    });
+    rx
 }
 
-#[allow(unused)]
+struct MadMessage<'a> {
+    buffer: Box<[u8]>,
+    reader: &'a mut (io::Read + 'a),
+    sender: &'a SyncSender<Result<Frame, MadError>>,
+    start_time: Option<f32>,
+    end_time: Option<f32>,
+    current_time: f32,
+}
+
 #[link(name = "mad")]
 extern {
     fn mad_decoder_init(decoder: *mut MadDecoder,
                         message: *mut c_void,
                         input_cb: extern fn(message: *mut c_void,
                                             stream: &MadStream) -> MadFlow,
-                        header_cb: extern fn(),
+                        header_cb: extern fn(message: *mut c_void,
+                                             header: &MadHeader) -> MadFlow,
                         filter_cb: extern fn(),
                         output_cb: extern fn(message: *mut c_void,
-                                             header: c_int,
+                                             header: &MadHeader,
                                              pcm: &MadPcm) -> MadFlow,
                         error_cb: extern fn(message: *mut c_void,
                                             stream: &MadStream,
-                                            frame: c_int) -> MadFlow,
+                                            frame: *const c_void) -> MadFlow,
                         message_cb: extern fn());
     fn mad_decoder_run(decoder: &mut MadDecoder, mode: MadDecoderMode) -> c_int;
     fn mad_decoder_finish(decoder: &mut MadDecoder) -> c_int;
@@ -147,8 +158,8 @@ extern {
 }
 
 /// libmad callbacks return MadFlow values, which are used to control the decoding process
-#[allow(unused)]
 #[repr(C)]
+#[allow(dead_code)]
 enum MadFlow {
     /// continue normally
     Continue = 0x0000,
@@ -165,7 +176,6 @@ enum MadFlow {
 }
 
 /// Errors generated by libmad
-#[allow(unused)]
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub enum MadError {
@@ -236,7 +246,6 @@ pub enum MadError {
     BadStereo = 0x0239,
 }
 
-#[allow(unused)]
 #[repr(C)]
 struct MadBitPtr {
     byte: size_t,
@@ -244,7 +253,6 @@ struct MadBitPtr {
     left: uint16_t,
 }
 
-#[allow(unused)]
 #[repr(C)]
 struct MadStream {
     buffer: size_t,
@@ -263,7 +271,53 @@ struct MadStream {
     error: MadError,
 }
 
-#[allow(unused)]
+#[repr(C)]
+#[allow(dead_code)]
+enum MadLayer {
+    Layer1 = 1,
+    Layer2 = 2,
+    Layer3 = 3,
+}
+
+#[repr(C)]
+#[allow(dead_code)]
+enum MadMode {
+    SingleChannel = 0,
+    DualChannel = 1,
+    JointStereo = 2,
+    Stereo = 3,
+}
+
+#[repr(C)]
+#[allow(dead_code)]
+enum MadEmphasis {
+    None = 0,
+    Fifty15Us = 1,
+    CcittJ17 = 3,
+    Reserved = 2,
+}
+
+#[repr(C)]
+struct MadTimer {
+    seconds: c_long,
+    fraction: c_ulong,
+}
+
+#[repr(C)]
+struct MadHeader {
+    layer: MadLayer,
+    mode: MadMode,
+    mode_extension: c_int,
+    emphasis: MadEmphasis,
+    bit_rate: c_ulong,
+    sample_rate: c_uint,
+    crc_check: c_ushort,
+    crc_target: c_ushort,
+    flags: c_int,
+    private_bits: c_int,
+    duration: MadTimer,
+}
+
 #[repr(C)]
 struct MadPcm {
     sample_rate: c_uint,
@@ -272,15 +326,8 @@ struct MadPcm {
     samples: [[int32_t; 1152]; 2],
 }
 
-#[allow(unused)]
-struct MadMessage<'a> {
-    buffer: Box<[u8]>,
-    reader: &'a mut (io::Read + 'a),
-    sender: &'a SyncSender<Result<Frame, MadError>>,
-}
-
-#[allow(unused)]
 #[repr(C)]
+#[allow(dead_code)]
 enum MadDecoderMode {
     Sync = 0,
     Async
@@ -316,23 +363,11 @@ struct MadDecoder {
     message_func: size_t,
 }
 
-/// A decoded frame
-#[allow(unused)]
-pub struct Frame {
-    /// Number of samples per second
-    pub sample_rate: usize,
-    /// Samples are signed 32 bit integers and are organized into channels.
-    /// For stereo, the left channel is channel 0.
-    pub samples: Vec<Vec<i32>>,
-}
-
-#[allow(unused)]
 extern fn empty_cb() {
 
 }
 
-#[allow(unused)]
-extern fn input_cb (msg_ptr: *mut c_void, stream: &MadStream) -> MadFlow {
+extern fn input_cb(msg_ptr: *mut c_void, stream: &MadStream) -> MadFlow {
     unsafe {
         let msg = &mut *(msg_ptr as *mut MadMessage);
         let buffer_size = (*msg).buffer.len();
@@ -342,15 +377,23 @@ extern fn input_cb (msg_ptr: *mut c_void, stream: &MadStream) -> MadFlow {
         if unused_byte_count == buffer_size {
             mad_stream_buffer(stream, (*msg).buffer.as_ptr(), buffer_size as u64);
         } else {
-            for idx in 0 .. unused_byte_count { // Shift unused data to front of buffer
+            // Shift unused data to front of buffer
+            for idx in 0 .. unused_byte_count {
                 (*msg).buffer[idx] = (*msg).buffer[idx + next_frame_position];
             }
 
-            let bytes_read = if next_frame_position == 0 { // Refill rest of buffer
-                (*msg).reader.read(&mut *(*msg).buffer).unwrap()
+            // Refill rest of buffer
+            let bytes_read = if next_frame_position == 0 {
+                match (*msg).reader.read(&mut *(*msg).buffer) {
+                    Ok(val) => val,
+                    Err(_) => {return MadFlow::Stop;},
+                }
             } else {
-                let slice = &mut (*msg).buffer[unused_byte_count .. buffer_size];
-                (*msg).reader.read(slice).unwrap()
+                let slice = &mut (*msg).buffer[unused_byte_count..buffer_size];
+                match (*msg).reader.read(slice) {
+                    Ok(val) => val,
+                    Err(_) => {return MadFlow::Stop;},
+                }
             };
 
             if bytes_read == 0 {
@@ -361,49 +404,86 @@ extern fn input_cb (msg_ptr: *mut c_void, stream: &MadStream) -> MadFlow {
             mad_stream_buffer(stream, (*msg).buffer.as_ptr(), fresh_byte_count);
         }
     }
-
     MadFlow::Continue
 }
 
-#[allow(unused)]
-extern fn error_cb(msg_ptr: *mut c_void, stream: &MadStream, frame: c_int) -> MadFlow {
+extern fn header_cb(msg_ptr: *mut c_void, header: &MadHeader) -> MadFlow {
+    unsafe {
+        let msg = &mut *(msg_ptr as *mut MadMessage);
+        msg.current_time += (header.duration.seconds as f32) * 1000.0 +
+                            (header.duration.fraction as f32) / 352800.0;
+        match (msg.start_time, msg.end_time) {
+            (Some(start_time), Some(end_time)) => {
+                if msg.current_time > end_time {
+                    MadFlow::Stop
+                } else if msg.current_time >= start_time {
+                    MadFlow::Continue
+                } else {
+                    MadFlow::Ignore
+                }
+            },
+            _ => MadFlow::Continue,
+        }
+    }
+}
+
+#[allow(unused_variables)]
+extern fn error_cb(msg_ptr: *mut c_void,
+                   stream: &MadStream,
+                   frame: *const c_void) -> MadFlow {
     unsafe {
         let error_type = stream.error.clone();
         let msg = &mut *(msg_ptr as *mut MadMessage);
-        (*msg).sender.send(Err(error_type));
+        match (*msg).sender.send(Err(error_type)) {
+            Ok(_) => {
+                MadFlow::Continue
+            },
+            Err(_) => {
+                MadFlow::Stop
+            },
+        }
     }
-    MadFlow::Continue
 }
 
-#[allow(unused)]
-extern fn output_cb(msg_ptr: *mut c_void, header: c_int, pcm: &MadPcm) -> MadFlow {
+#[allow(unused_variables)]
+extern fn output_cb(msg_ptr: *mut c_void, header: &MadHeader, pcm: &MadPcm) -> MadFlow {
+    unsafe {
+        let msg = &mut *(msg_ptr as *mut MadMessage);
+        let frame = parse_frame(pcm);
+        match (*msg).sender.send(Ok(frame)) {
+            Ok(_) => {
+                MadFlow::Continue
+            },
+            Err(_) => {
+                MadFlow::Stop
+            },
+        }
+    }
+}
+
+fn parse_frame(pcm: &MadPcm) -> Frame {
     let mut samples: Vec<Vec<i32>> = Vec::new();
     for channel_idx in 0..pcm.channels as usize {
         let mut channel: Vec<i32> = Vec::with_capacity(pcm.length as usize);
-        for sample_idx in 0 .. pcm.length as usize {
+        for sample_idx in 0..pcm.length as usize {
             channel.push(pcm.samples[channel_idx][sample_idx]);
         }
         samples.push(channel);
     }
-    let frame = Ok(Frame {sample_rate: pcm.sample_rate as usize,
-                          samples: samples});
-    unsafe {
-        let msg = &mut *(msg_ptr as *mut MadMessage);
-        (*msg).sender.send(frame);
-    }
-    MadFlow::Continue
+    Frame {sample_rate: pcm.sample_rate as usize, samples: samples}
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::sync::mpsc::Receiver;
 
-    fn create_decoder(path_str: &'static str) -> Decoder {
+    fn create_decoder(path_str: &'static str) -> Receiver<Result<Frame, MadError>> {
         use std::path::Path;
         use std::fs::File;
         let path = Path::new(path_str);
         let file = File::open(&path).unwrap();
-        Decoder::new(file)
+        decode(file)
     }
 
     #[test]
@@ -412,7 +492,7 @@ mod test {
         let mut frame_count = 0;
         let mut error_count = 0;
 
-        for item in decoder {
+        for item in decoder.iter() {
             match item {
                 Err(_) => {
                     if frame_count > 0 { error_count += 1; }
@@ -435,7 +515,7 @@ mod test {
         let mut frame_count = 0;
         let mut error_count = 0;
 
-        for item in decoder {
+        for item in decoder.iter() {
             match item {
                 Err(_) => {
                     if frame_count > 0 { error_count += 1; }
@@ -458,7 +538,7 @@ mod test {
         let mut frame_count = 0;
         let mut error_count = 0;
 
-        for item in decoder {
+        for item in decoder.iter() {
             match item {
                 Err(_) => {
                     if frame_count > 0 { error_count += 1; }
@@ -481,7 +561,7 @@ mod test {
         let mut frame_count = 0;
         let mut error_count = 0;
 
-        for item in decoder {
+        for item in decoder.iter() {
             match item {
                 Err(_) => {
                     if frame_count > 0 { error_count += 1; }
@@ -504,7 +584,7 @@ mod test {
         let mut frame_count = 0;
         let mut error_count = 0;
 
-        for item in decoder {
+        for item in decoder.iter() {
             match item {
                 Err(_) => {
                     if frame_count > 0 { error_count += 1 }
@@ -527,7 +607,7 @@ mod test {
         let mut frame_count = 0;
         let mut error_count = 0;
 
-        for item in decoder {
+        for item in decoder.iter() {
             match item {
                 Err(_) => {
                     if frame_count > 0 { error_count += 1 }
@@ -550,7 +630,7 @@ mod test {
         let mut frame_count = 0;
         let mut error_count = 0;
 
-        for item in decoder {
+        for item in decoder.iter() {
             match item {
                 Err(_) => {
                     if frame_count > 0 { error_count += 1; }
@@ -573,7 +653,7 @@ mod test {
         let mut frame_count = 0;
         let mut error_count = 0;
 
-        for item in decoder {
+        for item in decoder.iter() {
             match item {
                 Err(_) => {
                     if frame_count > 0 { error_count += 1; }
@@ -583,7 +663,7 @@ mod test {
                     assert_eq!(f.sample_rate, 44100);
                     assert_eq!(f.samples.len(), 1);
                     assert_eq!(f.samples[0].len(), 1152);
-                }
+                },
             }
         }
         assert_eq!(error_count, 0);
@@ -594,7 +674,7 @@ mod test {
     fn test_readme_code () {
         let decoder = create_decoder("sample_mp3s/constant_joint_stereo_128.mp3");
 
-        for item in decoder {
+        for item in decoder.iter() {
             match item {
                 Err(e) => println!("Error: {:?}", e),
                 Ok(frame) => {
