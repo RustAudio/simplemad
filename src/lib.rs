@@ -62,39 +62,18 @@ pub struct Frame {
 }
 
 /// Decode a file in full
-pub fn decode<T>(mut reader: T) -> Receiver<Result<Frame, MadError>>
+pub fn decode<T>(reader: T) -> Receiver<Result<Frame, MadError>>
     where T: io::Read + Send + 'static {
-    let (tx, rx) = mpsc::sync_channel::<Result<Frame, MadError>>(2);
-    thread::spawn(move || {
-        let input_buffer = Box::new([0u8; 32768]);
-        let mut decoder: MadDecoder = Default::default();
-        let mut message = MadMessage {
-            buffer: input_buffer,
-            reader: &mut reader,
-            sender: &tx,
-            start_time: None,
-            end_time: None,
-            current_time: 0.0,
-        };
-        unsafe {
-            let message_ptr = &mut message as *mut _ as *mut c_void;
-            mad_decoder_init(&mut decoder,
-                             message_ptr,
-                             input_cb,
-                             header_cb,
-                             empty_cb,
-                             output_cb,
-                             error_cb,
-                             empty_cb);
-            mad_decoder_run(&mut decoder, MadDecoderMode::Sync);
-            mad_decoder_finish(&mut decoder);
-        }
-    });
-    rx
+    spawn_decoder(reader, None, None)
 }
 
 /// Decode part of a file from `start_time` to `end_time`, measured in milliseconds
-pub fn decode_interval<T>(mut reader: T, start_time: f32, end_time: f32)
+pub fn decode_interval<T>(reader: T, start_time: f32, end_time: f32)
+    -> Receiver<Result<Frame, MadError>> where T: io::Read + Send + 'static {
+    spawn_decoder(reader, Some(start_time), Some(end_time))
+}
+
+fn spawn_decoder<T>(mut reader: T, start_time: Option<f32>, end_time: Option<f32>)
     -> Receiver<Result<Frame, MadError>> where T: io::Read + Send + 'static {
     let (tx, rx) = mpsc::sync_channel::<Result<Frame, MadError>>(2);
     thread::spawn(move || {
@@ -104,8 +83,8 @@ pub fn decode_interval<T>(mut reader: T, start_time: f32, end_time: f32)
             buffer: input_buffer,
             reader: &mut reader,
             sender: &tx,
-            start_time: Some(start_time),
-            end_time: Some(end_time),
+            start_time: start_time,
+            end_time: end_time,
             current_time: 0.0,
         };
         unsafe {
