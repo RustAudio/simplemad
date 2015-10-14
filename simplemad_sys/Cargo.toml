@@ -1,8 +1,8 @@
 [package]
-name = "simplemad"
-version = "0.4.0"
+name = "simplemad_sys"
+version = "0.0.0"
 authors = ["Benjamin Dykstra <bendykst@gmail.com>"]
-description = "An interface for libmad, the MPEG audio decoding library"
+description = "libmad 0.15.1b bindings for Rust"
 repository = "https://github.com/bendykst/simple-mad.rs"
 readme = "README.md"
 documentation = "http://bendykst.github.io/doc/simplemad/index.html"
@@ -10,10 +10,7 @@ keywords = ["mpeg", "mp3", "libmad"]
 license = "MIT"
 
 [lib]
-name = "simplemad"
-
-[dependencies.simplemad_sys]
-path = "../simplemad_sys"
+name = "simplemad_sys"
 
 [dependencies]
 libc = "0.1.6"
