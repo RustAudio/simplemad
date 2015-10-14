@@ -1,6 +1,5 @@
 /*!
-This crate provides an interface to libmad, allowing the decoding of MPEG
-audio files, including MP3s.
+This crate provides an interface to libmad, the MPEG audio decoding library.
 
 `simplemad::decode` takes a byte-oriented source and returns a channel that
 yields `Result<Frame, MadError>`. If you only need to decode part of a file,

@@ -42,12 +42,14 @@ for decoding_result in decoder.iter() {
 To decode from 30 seconds to 60 seconds, use `decode_interval` and provide the start and end time in milliseconds.
 
 ```Rust
-let mut partial_decoder = decode_interval(file, 30_000_f32, 60_000_f32);
+let mut partial_decoder = decode_interval(file, 30_000_f64, 60_000_f64);
 ```
 
 # Installation
 
-First, install libmad. Links to the source can be found below. It might be necessary to apply the patch found in [this guide](http://www.linuxfromscratch.org/blfs/view/svn/multimedia/libmad.html). Then add `simplemad = "0.3.0"` to the list of dependencies in your Cargo.toml.
+First, install libmad. Links to the source can be found below. It might be
+necessary to apply the patch found in [this guide](http://www.linuxfromscratch.org/blfs/view/svn/multimedia/libmad.html).  Then add `simplemad =
+"0.4.0"` to the list of dependencies in your Cargo.toml.
 
 # Documentation
 
