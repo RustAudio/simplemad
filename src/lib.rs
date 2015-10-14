@@ -52,7 +52,7 @@ use libc::types::os::arch::c95::*;
 use std::cmp::min;
 
 /// A decoded frame
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Frame {
     /// Number of samples per second
     pub sample_rate: usize,
@@ -137,8 +137,8 @@ extern {
 }
 
 /// libmad callbacks return MadFlow values, which are used to control the decoding process
-#[repr(C)]
 #[allow(dead_code)]
+#[repr(C)]
 enum MadFlow {
     /// continue normally
     Continue = 0x0000,
@@ -250,16 +250,16 @@ struct MadStream {
     error: MadError,
 }
 
-#[repr(C)]
 #[allow(dead_code)]
+#[repr(C)]
 enum MadLayer {
     Layer1 = 1,
     Layer2 = 2,
     Layer3 = 3,
 }
 
-#[repr(C)]
 #[allow(dead_code)]
+#[repr(C)]
 enum MadMode {
     SingleChannel = 0,
     DualChannel = 1,
@@ -267,8 +267,8 @@ enum MadMode {
     Stereo = 3,
 }
 
-#[repr(C)]
 #[allow(dead_code)]
+#[repr(C)]
 enum MadEmphasis {
     None = 0,
     Fifty15Us = 1,
@@ -305,8 +305,8 @@ struct MadPcm {
     samples: [[int32_t; 1152]; 2],
 }
 
-#[repr(C)]
 #[allow(dead_code)]
+#[repr(C)]
 enum MadDecoderMode {
     Sync = 0,
     Async
