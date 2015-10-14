@@ -3,10 +3,12 @@ This crate provides an interface to libmad, allowing the decoding of MPEG
 audio files, including MP3s.
 
 `simplemad::decode` takes a byte-oriented source and returns a channel that
-yields `Result<Frame, MadError>`. `Frame` and `MadError` correspond to libmad's
-struct types `mad_pcm` and `mad_error`, respectively. Samples are signed 32 bit
-integers and are organized into channels. For stereo, the left channel is
-channel 0.
+yields `Result<Frame, MadError>`. If you only need to decode part of a file,
+you can also use `simplemad::decode_interval`.
+
+`Frame` and `MadError` correspond to libmad's struct types `mad_pcm` and
+`mad_error`, respectively. Samples are signed 32 bit integers and are organized
+into channels. For stereo, the left channel is channel 0.
 
 MP3 files often begin with metadata, which will cause libmad to produce errors.
 It is safe to ignore these errors until libmad reaches audio data and starts
@@ -14,16 +16,17 @@ producing frames.
 
 # Examples
 ```
-use simplemad::decode;
+use simplemad::{decode, decode_interval, Frame};
 use std::fs::File;
 use std::path::Path;
 
 let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
 let file = File::open(&path).unwrap();
+let file_b = File::open(&path).unwrap();
 let mut decoder = decode(file);
 
-for item in decoder.iter() {
-    match item {
+for decoding_result in decoder.iter() {
+    match decoding_result {
         Err(e) => println!("Error: {:?}", e),
         Ok(frame) => {
           println!("Frame sample rate: {}", frame.sample_rate);
@@ -32,6 +35,14 @@ for item in decoder.iter() {
         }
     }
 }
+
+// Decode the interval from 1s to 2s (to the nearest frame)
+let mut partial_decoder = decode_interval(file_b, 1_000_f32, 2_000_f32);
+let frames: Vec<Frame> = partial_decoder.iter()
+                                        .filter_map(|r| match r {
+                                            Ok(f) => Some(f),
+                                            Err(_) => None})
+                                        .collect();
 ```
 */
 

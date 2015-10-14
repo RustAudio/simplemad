@@ -27,8 +27,8 @@ let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
 let file = File::open(&path).unwrap();
 let mut decoder = decode(file);
 
-for item in decoder.iter() {
-    match item {
+for decoding_result in decoder.iter() {
+    match decoding_result {
         Err(e) => println!("Error: {:?}", e),
         Ok(frame) => {
           println!("Frame sample rate: {}", frame.sample_rate);
