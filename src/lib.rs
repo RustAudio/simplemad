@@ -37,7 +37,7 @@ for decoding_result in decoder.iter() {
 }
 
 // Decode the interval from 1s to 2s (to the nearest frame)
-let mut partial_decoder = decode_interval(file_b, 1_000_f32, 2_000_f32);
+let mut partial_decoder = decode_interval(file_b, 1_000_f64, 2_000_f64);
 let frames: Vec<Frame> = partial_decoder.iter()
                                         .filter_map(|r| match r {
                                             Ok(f) => Some(f),
@@ -66,10 +66,12 @@ use std::cmp::min;
 #[derive(Clone, Debug)]
 pub struct Frame {
     /// Number of samples per second
-    pub sample_rate: usize,
+    pub sample_rate: u32,
     /// Samples are signed 32 bit integers and are organized into channels.
     /// For stereo, the left channel is channel 0.
     pub samples: Vec<Vec<i32>>,
+    /// The position in milliseconds at the start of the frame
+    pub position: f64,
 }
 
 /// Decode a file in full
@@ -79,12 +81,12 @@ pub fn decode<T>(reader: T) -> Receiver<Result<Frame, MadError>>
 }
 
 /// Decode part of a file from `start_time` to `end_time`, measured in milliseconds
-pub fn decode_interval<T>(reader: T, start_time: f32, end_time: f32)
+pub fn decode_interval<T>(reader: T, start_time: f64, end_time: f64)
     -> Receiver<Result<Frame, MadError>> where T: io::Read + Send + 'static {
     spawn_decoder(reader, Some(start_time), Some(end_time))
 }
 
-fn spawn_decoder<T>(mut reader: T, start_time: Option<f32>, end_time: Option<f32>)
+fn spawn_decoder<T>(mut reader: T, start_time: Option<f64>, end_time: Option<f64>)
     -> Receiver<Result<Frame, MadError>> where T: io::Read + Send + 'static {
     let (tx, rx) = mpsc::sync_channel::<Result<Frame, MadError>>(2);
     thread::spawn(move || {
@@ -119,9 +121,9 @@ struct MadMessage<'a> {
     buffer: Box<[u8]>,
     reader: &'a mut (io::Read + 'a),
     sender: &'a SyncSender<Result<Frame, MadError>>,
-    start_time: Option<f32>,
-    end_time: Option<f32>,
-    current_time: f32,
+    start_time: Option<f64>,
+    end_time: Option<f64>,
+    current_time: f64,
 }
 
 #[link(name = "mad")]
@@ -400,8 +402,8 @@ extern fn input_cb(msg_ptr: *mut c_void, stream: &MadStream) -> MadFlow {
 extern fn header_cb(msg_ptr: *mut c_void, header: &MadHeader) -> MadFlow {
     unsafe {
         let msg = &mut *(msg_ptr as *mut MadMessage);
-        msg.current_time += (header.duration.seconds as f32) * 1000.0 +
-                            (header.duration.fraction as f32) / 352800.0;
+        msg.current_time += (header.duration.seconds as f64) * 1000.0 +
+                            (header.duration.fraction as f64) / 352800.0;
         match (msg.start_time, msg.end_time) {
             (Some(start_time), Some(end_time)) => {
                 if msg.current_time > end_time {
@@ -439,7 +441,20 @@ extern fn error_cb(msg_ptr: *mut c_void,
 extern fn output_cb(msg_ptr: *mut c_void, header: &MadHeader, pcm: &MadPcm) -> MadFlow {
     unsafe {
         let msg = &mut *(msg_ptr as *mut MadMessage);
-        let frame = parse_frame(pcm);
+        let mut samples: Vec<Vec<i32>> = Vec::new();
+        for channel_idx in 0..pcm.channels as usize {
+            let mut channel: Vec<i32> = Vec::with_capacity(pcm.length as usize);
+            for sample_idx in 0..pcm.length as usize {
+                channel.push(pcm.samples[channel_idx][sample_idx]);
+            }
+            samples.push(channel);
+        }
+        let frame =
+            Frame {sample_rate: pcm.sample_rate as u32,
+                   samples: samples,
+                   position: msg.current_time -
+                             (header.duration.seconds as f64) * 1000.0 -
+                             (header.duration.fraction as f64) / 352800.0};
         match (*msg).sender.send(Ok(frame)) {
             Ok(_) => {
                 MadFlow::Continue
@@ -449,18 +464,6 @@ extern fn output_cb(msg_ptr: *mut c_void, header: &MadHeader, pcm: &MadPcm) -> M
             },
         }
     }
-}
-
-fn parse_frame(pcm: &MadPcm) -> Frame {
-    let mut samples: Vec<Vec<i32>> = Vec::new();
-    for channel_idx in 0..pcm.channels as usize {
-        let mut channel: Vec<i32> = Vec::with_capacity(pcm.length as usize);
-        for sample_idx in 0..pcm.length as usize {
-            channel.push(pcm.samples[channel_idx][sample_idx]);
-        }
-        samples.push(channel);
-    }
-    Frame {sample_rate: pcm.sample_rate as usize, samples: samples}
 }
 
 #[cfg(test)]
