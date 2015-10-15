@@ -14,7 +14,7 @@ It is safe to ignore these errors until libmad reaches audio data and starts
 producing frames.
 
 # Examples
-```
+```no_run
 use simplemad::{decode, decode_interval, Frame};
 use std::fs::File;
 use std::path::Path;

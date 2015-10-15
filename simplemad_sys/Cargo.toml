@@ -8,6 +8,11 @@ readme = "README.md"
 documentation = "http://bendykst.github.io/doc/simplemad/index.html"
 keywords = ["mpeg", "mp3", "libmad"]
 license = "MIT"
+build = "build.rs"
+
+[build-dependencies]
+gcc = "0.3"
+pkg-config = "0.3"
 
 [lib]
 name = "simplemad_sys"
