@@ -12,3 +12,11 @@ before_install:
   - ./configure --prefix=/usr --disable-static
   - make
   - sudo make install
+  - cd ..
+
+env:
+  - TEST_DIR=simplemad
+  - TEST_DIR=simplemad_sys
+
+script: cd $TEST_DIR && cargo build && cargo test
+
