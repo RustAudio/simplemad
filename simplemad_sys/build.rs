@@ -17,6 +17,7 @@ fn main() {
     if cfg!(windows) {
     panic!("Building libmad on Windows not implemented yet. Please install libmad manually.");
     }
+
     match env::set_current_dir("libmad-src") {
         Ok(_) => {},
         Err(e) => panic!("{}", e)
@@ -41,20 +42,22 @@ fn main() {
         Err(e) => panic!("{}", e)
     }
 
-    gcc::Config::new()
-                .file("bit.c")
-                .file("decoder.c")
-                .file("fixed.c")
-                .file("frame.c")
-                .file("huffman.c")
-                .file("layer3.c")
-                .file("layer12.c")
-                .file("stream.c")
-                .file("synth.c")
-                .file("timer.c")
-                .file("version.c")
-                .define("FPM_DEFAULT", None)
-                .compile("libmad.a");
+    Command::new("./configure")
+        .args(&["--disable-shared", "--enable-static"]) // Only build static lib
+        .args(&["--prefix", out_dir.to_str().unwrap()]) // Install on the outdir
+        .arg("--with-pic") // Build position-independent code (required by Rust)
+        .output()
+        .unwrap();
+
+    match Command::new("make").output() {
+        Ok(_) => {},
+        Err(e) => panic!("{}", e)
+    }
+
+    match Command::new("make").arg("install").output() {
+        Ok(_) => {},
+        Err(e) => panic!("{}", e)
+    }
 
     match env::set_current_dir("../..") {
         Ok(_) => {},
