@@ -48,15 +48,11 @@ let frames: Vec<Frame> = partial_decoder.filter_map(|r| match r {
 
 extern crate simplemad_sys;
 extern crate libc;
-use std::thread;
 use std::io;
 use std::io::Read;
-use std::sync::mpsc;
-use std::sync::mpsc::{SyncSender, Receiver};
 use std::default::Default;
 use std::marker::Send;
 use std::option::Option::None;
-use libc::types::common::c95::c_void;
 use std::cmp::min;
 use simplemad_sys::*;
 
@@ -278,8 +274,6 @@ mod test {
     use super::*;
     use std::fs::File;
     use std::path::Path;
-    use simplemad_sys::*;
-    use std::sync::mpsc::Receiver;
 
     #[test]
     fn constant_stereo_128() {
