@@ -1,6 +1,6 @@
 [package]
 name = "simplemad_sys"
-version = "0.0.0"
+version = "0.1.0"
 authors = ["Benjamin Dykstra <bendykst@gmail.com>"]
 description = "libmad 0.15.1b bindings for Rust"
 repository = "https://github.com/bendykst/simple-mad.rs"
@@ -19,4 +19,3 @@ name = "simplemad_sys"
 
 [dependencies]
 libc = "0.1.6"
-

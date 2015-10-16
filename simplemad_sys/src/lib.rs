@@ -171,7 +171,7 @@ pub struct MadStream {
     pub error: MadError,
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, raw_pointer_derive)]
 #[derive(Clone)]
 #[repr(C)]
 pub struct MadFrame {
@@ -344,7 +344,7 @@ struct MadAsyncParameters {
     aout: c_int,
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, raw_pointer_derive)]
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub struct MadDecoder {

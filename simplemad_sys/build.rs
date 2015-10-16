@@ -15,7 +15,7 @@ fn main() {
     };
 
     if cfg!(windows) {
-    panic!("Building libmad on Windows not implemented yet. Please install libmad manually.");
+        panic!("libmad could not be found. Building libmad automatically on Windows not implemented yet. Please install libmad manually.");
     }
 
     match env::set_current_dir("libmad-src") {
@@ -71,5 +71,4 @@ fn main() {
 
     let out_str = out_dir.to_str().unwrap();
     println!("cargo:rustc-flags=-L native={}/lib -l static=mad", out_str);
-    println!("cargo:rustdoc-flags=-L native={}/lib -l static=mad", out_str);
 }
