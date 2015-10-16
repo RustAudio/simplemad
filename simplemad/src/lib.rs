@@ -68,8 +68,8 @@ pub struct Frame {
     pub position: f64,
 }
 
-pub struct Decoder<T> where T: io::Read + Send + 'static {
-    reader: T,
+pub struct Decoder<R> where R: io::Read + Send + 'static {
+    reader: R,
     buffer: Box<[u8; 32_768]>,
     stream: MadStream,
     synth: MadSynth,
@@ -80,8 +80,8 @@ pub struct Decoder<T> where T: io::Read + Send + 'static {
     terminated: bool,
 }
 
-impl<T> Decoder<T> where T: io::Read + Send + 'static {
-    pub fn new(reader: T, start_ms: Option<f64>, end_ms: Option<f64>) -> Decoder<T> {
+impl<R> Decoder<R> where R: io::Read + Send + 'static {
+    pub fn new(reader: R, start_ms: Option<f64>, end_ms: Option<f64>) -> Decoder<R> {
         let mut new_decoder =
             Decoder {
                 reader: reader,
@@ -112,23 +112,54 @@ impl<T> Decoder<T> where T: io::Read + Send + 'static {
         new_decoder
     }
 
-    fn get_frame(&mut self) -> Result<Frame, MadError> {
-       match self.decode_frame() {
-           Ok(frame) => Ok(frame),
-           Err(MadError::BufLen) => {
-               // Refill buffer and try again
-               if self.refill_buffer() > 0 {
-                   self.decode_frame()
-               } else {
-                   // Out of data
-                   Err(MadError::BufLen)
-               }
-           },
-           Err(e) => Err(e)
-       }
+    fn seek_to_start(&mut self) -> Result<Frame, MadError> {
+        match self.start_ms {
+            Some(start_time) => {
+                while self.position_ms < start_time {
+                    match self.decode_header() {
+                        Ok(_) => { self.position_ms += frame_duration(&self.frame) },
+                        Err(MadError::BufLen) => {
+                            if self.refill_buffer() == 0 {
+                                return Err(MadError::BufLen);
+                            }
+                        },
+                        Err(e) => return Err(e),
+                    }
+                }
+            },
+            None => {},
+        }
+
+        self.get_frame()
     }
 
-    fn decode_frame(&mut self) -> Result<Frame, MadError> {
+    fn get_frame(&mut self) -> Result<Frame, MadError> {
+        match self.decode_frame() {
+            Ok(frame) => {
+                self.position_ms += frame_duration(&self.frame);
+                Ok(frame)
+            },
+            Err(MadError::BufLen) => {
+                // Refill buffer and try again
+                if self.refill_buffer() > 0 {
+                    self.decode_frame()
+                } else {
+                    // Out of data
+                    self.stream.error = MadError::None;
+                    Err(MadError::BufLen)
+                }
+            },
+            Err(e) => {
+                if !error_is_recoverable(&e) {
+                    self.terminated = true;
+                }
+                self.stream.error = MadError::None;
+                Err(e)
+            }
+        }
+    }
+
+    fn decode_header(&mut self) -> Result<(), MadError> {
         unsafe {
             mad_header_decode(&mut self.frame.header, &mut self.stream);
         }
@@ -137,6 +168,10 @@ impl<T> Decoder<T> where T: io::Read + Send + 'static {
             return Err(self.stream.error.clone());
         }
 
+        Ok(())
+    }
+
+    fn decode_frame(&mut self) -> Result<Frame, MadError> {
         unsafe {
             mad_frame_decode(&mut self.frame, &mut self.stream);
         }
@@ -173,7 +208,7 @@ impl<T> Decoder<T> where T: io::Read + Send + 'static {
         Ok(frame)
     }
 
-    pub fn refill_buffer(&mut self) -> usize {
+    fn refill_buffer(&mut self) -> usize {
         let buffer_size = self.buffer.len();
         let next_frame_position = (self.stream.next_frame - self.stream.buffer) as usize;
         let unused_byte_count = buffer_size - min(next_frame_position, buffer_size);
@@ -221,27 +256,34 @@ impl<T> Decoder<T> where T: io::Read + Send + 'static {
     }
 }
 
-impl<T> Iterator for Decoder<T> where T: io::Read + Send + 'static {
+impl<R> Iterator for Decoder<R> where R: io::Read + Send + 'static {
     type Item = Result<Frame, MadError>;
     fn next(&mut self) -> Option<Result<Frame, MadError>> {
         if self.terminated {
             return None;
         }
 
+        match self.start_ms {
+            Some(t) if self.position_ms < t => { return Some(self.seek_to_start()) },
+            _ => {},
+        }
+
+        match self.end_ms {
+            Some(t) if self.position_ms > t => { return None },
+            _ => {},
+        }
+
         match self.get_frame() {
             Ok(f) => Some(Ok(f)),
             Err(MadError::BufLen) => None, // EOF condition
             Err(e) => {
-                if !error_is_recoverable(&e) {
-                    self.terminated = true;
-                }
                 Some(Err(e))
             }
         }
     }
 }
 
-impl<T> Drop for Decoder<T> where T: io::Read + Send + 'static {
+impl<R> Drop for Decoder<R> where R: io::Read + Send + 'static {
     fn drop(&mut self) {
         unsafe {
             mad_stream_finish(&mut self.stream);
@@ -257,15 +299,20 @@ fn error_is_recoverable(err: &MadError) -> bool {
     (err.clone() as u16) & 0xff00 != 0
 }
 
+fn frame_duration(frame: &MadFrame) -> f64 {
+    let duration = &frame.header.duration;
+    (duration.seconds as f64) * 1000.0 + (duration.fraction as f64) / 352800.0
+}
+
 /// Decode a file in full
-pub fn decode<T>(reader: T) -> Decoder<T>
-    where T: io::Read + Send + 'static {
+pub fn decode<R>(reader: R) -> Decoder<R>
+    where R: io::Read + Send + 'static {
     Decoder::new(reader, None, None)
 }
 
 /// Decode part of a file from `start_time` to `end_time`, measured in milliseconds
-pub fn decode_interval<T>(reader: T, start_time: f64, end_time: f64)
-    -> Decoder<T> where T: io::Read + Send + 'static {
+pub fn decode_interval<R>(reader: R, start_time: f64, end_time: f64)
+    -> Decoder<R> where R: io::Read + Send + 'static {
     Decoder::new(reader, Some(start_time), Some(end_time))
 }
 
@@ -274,6 +321,31 @@ mod test {
     use super::*;
     use std::fs::File;
     use std::path::Path;
+
+    #[test]
+    fn test_decode_interval() {
+        let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
+        let file = File::open(&path).unwrap();
+        let decoder = decode_interval(file, 3000.0, 4000.0);
+        let mut frame_count = 0;
+        let mut error_count = 0;
+
+        for item in decoder {
+            match item {
+                Err(_) => {
+                    if frame_count > 0 { error_count += 1; }
+                },
+                Ok(f) => {
+                    frame_count += 1;
+                    assert_eq!(f.sample_rate, 44100);
+                    assert_eq!(f.samples.len(), 2);
+                    assert_eq!(f.samples[0].len(), 1152);
+                }
+            }
+        }
+        assert_eq!(error_count, 0);
+        assert_eq!(frame_count, 39);
+    }
 
     #[test]
     fn constant_stereo_128() {

@@ -192,6 +192,8 @@ impl Default for MadFrame {
     }
 }
 
+unsafe impl std::marker::Send for MadFrame { }
+
 #[allow(dead_code)]
 #[derive(Clone)]
 #[repr(C)]
