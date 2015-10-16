@@ -1,14 +1,9 @@
 language: rust
-sudo: required
+sudo: false
 
-before_install:
-  - git clone https://github.com/markjeee/libmad.git
-  - git clone https://gist.github.com/4b9d8cb0e98d4e8b508a.git libmad-patch
-  - cd libmad
-  - patch -Np1 -i ../libmad-patch/gistfile1.txt
-  - sed "s@AM_CONFIG_HEADER@AC_CONFIG_HEADERS@g" -i configure.ac
-  - touch NEWS AUTHORS ChangeLog
-  - autoreconf -fi
-  - ./configure --prefix=/usr --disable-static
-  - make
-  - sudo make install
+env:
+  - TEST_DIR=simplemad
+  - TEST_DIR=simplemad_sys
+
+script: cd $TEST_DIR && cargo build && cargo test
+
