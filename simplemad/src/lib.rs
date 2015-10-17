@@ -53,7 +53,6 @@ extern crate simplemad_sys;
 use std::io;
 use std::io::Read;
 use std::default::Default;
-use std::marker::Send;
 use std::option::Option::None;
 use std::cmp::min;
 use simplemad_sys::*;
@@ -76,7 +75,7 @@ pub struct Frame {
 ///
 /// Create a new decoder using `decode` or `decode_interval`. Get decoding
 /// results by calling `get_frame` or by using the `Iterator` interface.
-pub struct Decoder<R> where R: io::Read + Send + 'static {
+pub struct Decoder<R> where R: io::Read {
     reader: R,
     buffer: Box<[u8; 32_768]>,
     stream: MadStream,
@@ -110,7 +109,7 @@ impl From<io::Error> for SimplemadError {
     }
 }
 
-impl<R> Decoder<R> where R: io::Read + Send + 'static {
+impl<R> Decoder<R> where R: io::Read {
     fn new(reader: R, start_ms: Option<f64>, end_ms: Option<f64>)
             -> Result<Decoder<R>, SimplemadError> {
         let mut new_decoder =
@@ -300,7 +299,7 @@ impl<R> Decoder<R> where R: io::Read + Send + 'static {
     }
 }
 
-impl<R> Iterator for Decoder<R> where R: io::Read + Send + 'static {
+impl<R> Iterator for Decoder<R> where R: io::Read {
     type Item = Result<Frame, SimplemadError>;
     fn next(&mut self) -> Option<Result<Frame, SimplemadError>> {
         if !error_is_recoverable(&self.stream.error) {
@@ -317,7 +316,7 @@ impl<R> Iterator for Decoder<R> where R: io::Read + Send + 'static {
     }
 }
 
-impl<R> Drop for Decoder<R> where R: io::Read + Send + 'static {
+impl<R> Drop for Decoder<R> where R: io::Read {
     fn drop(&mut self) {
         unsafe {
             mad_stream_finish(&mut self.stream);
