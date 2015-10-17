@@ -12,6 +12,7 @@ fn main() {
     // attempt to compile libmad manually
     let mut gcc = gcc::Config::new();
     gcc.include("libmad-src");
+    gcc.define("HAVE_CONFIG_H", None);
 
     let target = env::var("TARGET").unwrap();
 
