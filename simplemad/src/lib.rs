@@ -49,7 +49,7 @@ let frames: Vec<Frame> = partial_decoder.unwrap()
 #![crate_name = "simplemad"]
 
 extern crate simplemad_sys;
-extern crate libc;
+
 use std::io;
 use std::io::Read;
 use std::default::Default;
