@@ -13,5 +13,4 @@ license = "MIT"
 name = "simplemad"
 
 [dependencies]
-libc = "0.1.6"
 simplemad_sys = { version = "0.1.0", path = "../simplemad_sys" }
