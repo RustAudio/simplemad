@@ -133,7 +133,7 @@ impl<R> Decoder<R> where R: io::Read + Send + 'static {
             mad_synth_init(&mut new_decoder.synth);
             mad_stream_buffer(&mut new_decoder.stream,
                               new_decoder.buffer.as_ptr(),
-                              bytes_read as u64);
+                              bytes_read as c_ulong);
         }
 
         Ok(new_decoder)
@@ -289,7 +289,7 @@ impl<R> Decoder<R> where R: io::Read + Send + 'static {
 
         let fresh_byte_count = (bytes_read + unused_byte_count) as u64;
         unsafe {
-            mad_stream_buffer(&mut self.stream, self.buffer.as_ptr(), fresh_byte_count);
+            mad_stream_buffer(&mut self.stream, self.buffer.as_ptr(), fresh_byte_count as c_ulong);
         }
 
         if self.stream.error == MadError::BufLen {
