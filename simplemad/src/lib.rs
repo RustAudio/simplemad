@@ -29,10 +29,10 @@ for decoding_result in decoder {
     match decoding_result {
         Err(e) => println!("Error: {:?}", e),
         Ok(frame) => {
-          println!("Frame sample rate: {}", frame.sample_rate);
-          println!("First audio sample (left channel): {}", frame.samples[0][0]);
-          println!("First audio sample (right channel): {}", frame.samples[1][0]);
-        }
+            println!("Frame sample rate: {}", frame.sample_rate);
+            println!("First audio sample (left channel): {}", frame.samples[0][0]);
+            println!("First audio sample (right channel): {}", frame.samples[1][0]);
+        },
     }
 }
 
@@ -66,6 +66,8 @@ pub struct Frame {
     /// Samples are signed 32 bit integers and are organized into channels.
     /// For stereo, the left channel is channel 0.
     pub samples: Vec<Vec<i32>>,
+    /// The duration of the frame in milliseconds
+    pub duration: f32,
     /// The position in milliseconds at the start of the frame
     pub position: f64,
 }
@@ -255,16 +257,17 @@ impl<R> Decoder<R> where R: io::Read + Send + 'static {
         let frame =
             Frame {sample_rate: self.synth.pcm.sample_rate as u32,
                    samples: samples,
-                   position: self.position_ms -
-                             (self.frame.header.duration.seconds as f64) * 1000.0 -
-                             (self.frame.header.duration.fraction as f64) / 352800.0};
+                   duration: frame_duration(&self.frame) as f32,
+                   position: self.position_ms};
         Ok(frame)
     }
 
     fn refill_buffer(&mut self) -> Result<usize, io::Error> {
-        let buffer_size = self.buffer.len();
-        let next_frame_position = (self.stream.next_frame - self.stream.buffer) as usize;
-        let unused_byte_count = buffer_size - min(next_frame_position, buffer_size);
+        let buffer_len = self.buffer.len();
+        let next_frame_position =
+            (self.stream.next_frame - self.stream.buffer) as usize;
+        let unused_byte_count =
+            buffer_len - min(next_frame_position, buffer_len);
 
         // Shift unused data to front of buffer
         for idx in 0 .. unused_byte_count {
@@ -276,7 +279,7 @@ impl<R> Decoder<R> where R: io::Read + Send + 'static {
             if next_frame_position == 0 {
                 try!(self.reader.read(&mut *self.buffer))
             } else {
-                let slice = &mut self.buffer[unused_byte_count..buffer_size];
+                let slice = &mut self.buffer[unused_byte_count..buffer_len];
                 try!(self.reader.read(slice))
             };
 
@@ -364,6 +367,56 @@ mod test {
         }
         assert_eq!(error_count, 0);
         assert_eq!(frame_count, 39);
+    }
+
+    #[test]
+    fn test_decode_empty_interval() {
+        let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
+        let file = File::open(&path).unwrap();
+        let decoder = Decoder::decode_interval(file, 2000.0, 2000.0).unwrap();
+        let mut frame_count = 0;
+        let mut error_count = 0;
+
+        for item in decoder {
+            match item {
+                Err(_) => {
+                    if frame_count > 0 { error_count += 1; }
+                },
+                Ok(f) => {
+                    frame_count += 1;
+                    assert_eq!(f.sample_rate, 44100);
+                    assert_eq!(f.samples.len(), 2);
+                    assert_eq!(f.samples[0].len(), 1152);
+                }
+            }
+        }
+        assert_eq!(error_count, 0);
+        assert_eq!(frame_count, 0);
+    }
+
+    #[test]
+    fn test_decode_overlong_interval() {
+        let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
+        let file = File::open(&path).unwrap();
+        let decoder = Decoder::decode_interval(file, 3000.0, 45000.0).unwrap();
+        let mut frame_count = 0;
+        let mut error_count = 0;
+
+        for item in decoder {
+            match item {
+                Err(_) => {
+                    if frame_count > 0 { error_count += 1; }
+                },
+                Ok(f) => {
+                    frame_count += 1;
+                    assert_eq!(f.sample_rate, 44100);
+                    assert_eq!(f.samples.len(), 2);
+                    assert_eq!(f.samples[0].len(), 1152);
+                }
+            }
+        }
+        assert_eq!(error_count, 0);
+        assert_eq!(frame_count, 77);
     }
 
     #[test]
