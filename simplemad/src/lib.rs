@@ -30,8 +30,8 @@ for decoding_result in decoder {
         Err(e) => println!("Error: {:?}", e),
         Ok(frame) => {
             println!("Frame sample rate: {}", frame.sample_rate);
-            println!("First audio sample (left channel): {}", frame.samples[0][0]);
-            println!("First audio sample (right channel): {}", frame.samples[1][0]);
+            println!("First audio sample (left channel): {:?}", frame.samples[0][0]);
+            println!("First audio sample (right channel): {:?}", frame.samples[1][0]);
         },
     }
 }
@@ -64,7 +64,7 @@ pub struct Frame {
     pub sample_rate: u32,
     /// Samples are signed 32 bit integers and are organized into channels.
     /// For stereo, the left channel is channel 0.
-    pub samples: Vec<Vec<i32>>,
+    pub samples: Vec<Vec<MadFixed32>>,
     /// The duration of the frame in milliseconds
     pub duration: f32,
     /// The position in milliseconds at the start of the frame
@@ -243,12 +243,14 @@ impl<R> Decoder<R> where R: io::Read {
         }
 
         let pcm = &self.synth.pcm;
-        let mut samples: Vec<Vec<i32>> = Vec::new();
+        let mut samples: Vec<Vec<MadFixed32>> = Vec::new();
 
         for channel_idx in 0..pcm.channels as usize {
-            let mut channel: Vec<i32> = Vec::with_capacity(pcm.length as usize);
+            let mut channel: Vec<MadFixed32> = Vec::with_capacity(pcm.length as usize);
             for sample_idx in 0..pcm.length as usize {
-                channel.push(pcm.samples[channel_idx][sample_idx]);
+                channel.push(
+                    pcm.samples[channel_idx][sample_idx]
+                );
             }
             samples.push(channel);
         }
@@ -631,9 +633,9 @@ mod test {
             match decoding_result {
                 Err(e) => println!("Error: {:?}", e),
                 Ok(frame) => {
-                  println!("Frame sample rate: {}", frame.sample_rate);
-                  println!("First audio sample (left channel): {}", frame.samples[0][0]);
-                  println!("First audio sample (right channel): {}", frame.samples[1][0]);
+                  println!("Frame sample rate: {:?}", frame.sample_rate);
+                  println!("First audio sample (left channel): {:?}", frame.samples[0][0]);
+                  println!("First audio sample (right channel): {:?}", frame.samples[1][0]);
                 }
             }
         }
