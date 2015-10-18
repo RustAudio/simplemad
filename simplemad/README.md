@@ -41,13 +41,6 @@ Decode the interval from 30 seconds to 60 seconds:
 let mut partial_decoder = Decoder::decode_interval(file, 30_000_f64, 60_000_f64).unwrap();
 ```
 
-# libmad
-
-On Linux, libmad will be built automatically, if it is not installed. On other
-operating systems, it is necessary to install libmad manually. Links to libmad
-can be found below. If you are building from source, you will also need to
-apply the patch found in [this guide](http://www.linuxfromscratch.org/blfs/view/svn/multimedia/libmad.html).
-
 # Documentation
 
 http://bendykst.github.io/doc/simplemad/index.html
