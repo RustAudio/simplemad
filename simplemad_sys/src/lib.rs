@@ -51,78 +51,6 @@ extern {
     pub fn mad_synth_frame(synth: &mut MadSynth, frame: &mut MadFrame);
 }
 
-#[derive(Clone, Copy)]
-#[repr(C)]
-pub struct MadFixed32 {
-    /* Fixed-point format: 0xABBBBBBB
-       A == whole part (sign + 3 bits)
-       B == fractional part (28 bits)
-    */
-    value: i32,
-}
-
-impl MadFixed32 {
-    pub fn new(v: i32) -> MadFixed32 {
-        MadFixed32 {
-            value: v,
-        }
-    }
-
-    pub fn to_i32(&self) -> i32 {
-        if self.value > i32::max_value() / 8 {
-            i32::max_value()
-        } else if self.value < i32::min_value() / 8 {
-            i32::min_value()
-        } else {
-            self.value * 8
-        }
-    }
-
-    pub fn to_f32(&self) -> f32 {
-        // Divide by 2^28
-        (self.value as f32) / 268435456.0
-    }
-
-    pub fn to_f64(&self) -> f64 {
-        // Divide by 2^28
-        (self.value as f64) / 268435456.0
-    }
-}
-
-impl Default for MadFixed32 {
-    fn default() -> MadFixed32 {
-        MadFixed32 {value: 0}
-    }
-}
-
-impl From<i32> for MadFixed32 {
-    fn from(v: i32) -> MadFixed32 {
-        MadFixed32 {value: v / 8}
-    }
-}
-
-impl From<f32> for MadFixed32 {
-    fn from(v: f32) -> MadFixed32 {
-        MadFixed32 {
-            value: (v * 268435456.0) as i32,
-        }
-    }
-}
-
-impl From<f64> for MadFixed32 {
-    fn from(v: f64) -> MadFixed32 {
-        MadFixed32 {
-            value: (v * 268435456.0) as i32,
-        }
-    }
-}
-
-impl fmt::Debug for MadFixed32 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_f32())
-    }
-}
-
 /// libmad callbacks return MadFlow values, which are used to control the decoding process
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -253,8 +181,8 @@ pub struct MadStream {
 pub struct MadFrame {
     pub header: MadHeader,
     pub options: c_int,
-    pub sbsample: [[[MadFixed32; 32]; 36]; 2],
-    pub overlap: *mut MadFixed32,
+    pub sbsample: [[[i32; 32]; 36]; 2],
+    pub overlap: *mut i32,
 }
 
 impl Default for MadFrame {
@@ -262,8 +190,8 @@ impl Default for MadFrame {
         MadFrame {
             header: Default::default(),
             options: 0,
-            sbsample: [[[MadFixed32::new(0); 32]; 36]; 2],
-            overlap: ptr::null::<MadFixed32>() as *mut MadFixed32,
+            sbsample: [[[0; 32]; 36]; 2],
+            overlap: ptr::null::<i32>() as *mut i32,
         }
     }
 }
@@ -274,7 +202,7 @@ unsafe impl std::marker::Send for MadFrame { }
 #[derive(Clone)]
 #[repr(C)]
 pub struct MadSynth {
-    pub filter: [[[[[MadFixed32; 8]; 16]; 2]; 2]; 2],
+    pub filter: [[[[[i32; 8]; 16]; 2]; 2]; 2],
     pub phase: c_uint,
     pub pcm: MadPcm,
 }
@@ -282,7 +210,7 @@ pub struct MadSynth {
 impl Default for MadSynth {
     fn default() -> MadSynth {
         MadSynth {
-            filter: [[[[[MadFixed32::new(0); 8]; 16]; 2]; 2]; 2],
+            filter: [[[[[0; 8]; 16]; 2]; 2]; 2],
             phase: 0,
             pcm: Default::default()
         }
@@ -374,7 +302,7 @@ pub struct MadPcm {
     pub sample_rate: c_uint,
     pub channels: uint16_t,
     pub length: uint16_t,
-    pub samples: [[MadFixed32; 1152]; 2],
+    pub samples: [[i32; 1152]; 2],
 }
 
 impl Default for MadPcm {
@@ -383,7 +311,7 @@ impl Default for MadPcm {
             sample_rate: 0,
             channels: 0,
             length: 0,
-            samples: [[MadFixed32::new(0); 1152]; 2],
+            samples: [[0; 1152]; 2],
         }
     }
 }

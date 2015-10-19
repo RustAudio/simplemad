@@ -53,9 +53,19 @@ extern crate simplemad_sys;
 use std::io;
 use std::io::Read;
 use std::default::Default;
-use std::option::Option::None;
+use std::fmt;
 use std::cmp::min;
 use simplemad_sys::*;
+
+#[derive(Clone, Copy, Default)]
+#[repr(C)]
+pub struct MadFixed32 {
+    /* Fixed-point format: 0xABBBBBBB
+       A == whole part (sign + 3 bits)
+       B == fractional part (28 bits)
+    */
+    value: i32,
+}
 
 /// A decoded frame
 #[derive(Clone, Debug)]
@@ -106,6 +116,13 @@ impl From<MadError> for SimplemadError {
 impl From<io::Error> for SimplemadError {
     fn from(err: io::Error) -> SimplemadError {
         SimplemadError::Read(err)
+    }
+}
+
+
+impl fmt::Debug for MadFixed32 {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_f32())
     }
 }
 
@@ -246,10 +263,10 @@ impl<R> Decoder<R> where R: io::Read {
         let mut samples: Vec<Vec<MadFixed32>> = Vec::new();
 
         for channel_idx in 0..pcm.channels as usize {
-            let mut channel: Vec<MadFixed32> = Vec::with_capacity(pcm.length as usize);
+            let mut channel = Vec::with_capacity(pcm.length as usize);
             for sample_idx in 0..pcm.length as usize {
                 channel.push(
-                    pcm.samples[channel_idx][sample_idx]
+                    MadFixed32::from(pcm.samples[channel_idx][sample_idx])
                 );
             }
             samples.push(channel);
@@ -337,6 +354,56 @@ fn error_is_recoverable(err: &MadError) -> bool {
 fn frame_duration(frame: &MadFrame) -> f64 {
     let duration = &frame.header.duration;
     (duration.seconds as f64) * 1000.0 + (duration.fraction as f64) / 352800.0
+}
+
+impl MadFixed32 {
+    pub fn new(v: i32) -> MadFixed32 {
+        MadFixed32 {
+            value: v,
+        }
+    }
+
+    pub fn to_i32(&self) -> i32 {
+        if self.value > i32::max_value() / 8 {
+            i32::max_value()
+        } else if self.value < i32::min_value() / 8 {
+            i32::min_value()
+        } else {
+            self.value * 8
+        }
+    }
+
+    pub fn to_f32(&self) -> f32 {
+        // Divide by 2^28
+        (self.value as f32) / 268435456.0
+    }
+
+    pub fn to_f64(&self) -> f64 {
+        // Divide by 2^28
+        (self.value as f64) / 268435456.0
+    }
+}
+
+impl From<i32> for MadFixed32 {
+    fn from(v: i32) -> MadFixed32 {
+        MadFixed32 {value: v / 8}
+    }
+}
+
+impl From<f32> for MadFixed32 {
+    fn from(v: f32) -> MadFixed32 {
+        MadFixed32 {
+            value: (v * 268435456.0) as i32,
+        }
+    }
+}
+
+impl From<f64> for MadFixed32 {
+    fn from(v: f64) -> MadFixed32 {
+        MadFixed32 {
+            value: (v * 268435456.0) as i32,
+        }
+    }
 }
 
 #[cfg(test)]
