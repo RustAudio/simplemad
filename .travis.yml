@@ -1,6 +1,14 @@
 language: rust
 sudo: false
 
+rust:
+  - nightly
+  - stable
+
+matrix:
+  allow_failures:
+    - rust: nightly
+
 env:
   - TEST_DIR=simplemad
   - TEST_DIR=simplemad_sys
