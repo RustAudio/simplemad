@@ -52,11 +52,11 @@ use simplemad_sys::*;
 
 #[derive(Clone, Copy, Default, Debug)]
 #[repr(C)]
-/// libmad's native fixed-point format
+/// libmad's native fixed-point sample format
 ///
 /// A 32-bit value comprised of a sign bit,
 /// three whole number bits and 28 fractional
-/// bits. As such, its range is [-8.0, 8.0).
+/// bits.
 pub struct MadFixed32 {
     value: i32,
 }
