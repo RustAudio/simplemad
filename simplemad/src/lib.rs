@@ -1,17 +1,11 @@
 /*!
 This crate provides an interface to libmad, the MPEG audio decoding library.
 
-To begin, create a new `Decoder` from a byte-oriented source using
-`Decoder::decode` or `Decoder::decode_interval`. Fetch results using
-`get_frame` or the `Iterator` interface.
-
-`Frame` and `MadError` correspond to libmad's struct types `mad_pcm` and
-`mad_error`, respectively. Samples are signed 32 bit integers and are organized
-into channels. For stereo, the left channel is channel 0.
-
-MP3 files often begin with metadata, which will cause libmad to produce errors.
-It is safe to ignore these errors until libmad reaches audio data and starts
-producing frames.
+To begin, create a `Decoder` from a byte-oriented source using `Decoder::decode`
+or `Decoder::decode_interval`. Fetch results using `get_frame` or the `Iterator`
+interface. MP3 files often begin or end with metadata, which will cause libmad
+to produce errors. It is safe to ignore these errors until libmad reaches the
+start of the audio data or the end of the file.
 
 # Examples
 ```no_run
@@ -36,7 +30,7 @@ for decoding_result in decoder {
     }
 }
 
-// Decode the interval from 1s to 2s (to the nearest frame)
+// Decode the interval from 1s to 2s (to the nearest frame),
 let partial_decoder = Decoder::decode_interval(file_b, 1_000_f64, 2_000_f64);
 let frames: Vec<Frame> = partial_decoder.unwrap()
                                         .filter_map(|r| match r {
@@ -53,17 +47,17 @@ extern crate simplemad_sys;
 use std::io;
 use std::io::Read;
 use std::default::Default;
-use std::fmt;
-use std::cmp::min;
+use std::cmp::{min, max};
 use simplemad_sys::*;
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 #[repr(C)]
+/// libmad's native fixed-point format
+///
+/// A 32-bit value comprised of a sign bit,
+/// three whole number bits and 28 fractional
+/// bits. As such, its range is [-8.0, 8.0).
 pub struct MadFixed32 {
-    /* Fixed-point format: 0xABBBBBBB
-       A == whole part (sign + 3 bits)
-       B == fractional part (28 bits)
-    */
     value: i32,
 }
 
@@ -72,8 +66,8 @@ pub struct MadFixed32 {
 pub struct Frame {
     /// Number of samples per second
     pub sample_rate: u32,
-    /// Samples are signed 32 bit integers and are organized into channels.
-    /// For stereo, the left channel is channel 0.
+    /// Samples are organized into a vector of channels. For
+    /// stereo, the left channel is channel 0.
     pub samples: Vec<Vec<MadFixed32>>,
     /// The duration of the frame in milliseconds
     pub duration: f32,
@@ -83,8 +77,8 @@ pub struct Frame {
 
 /// An interface for the decoding operation
 ///
-/// Create a new decoder using `decode` or `decode_interval`. Get decoding
-/// results by calling `get_frame` or by using the `Iterator` interface.
+/// Create a decoder using `decode` or `decode_interval`. Fetch
+/// results with `get_frame` or the `Iterator` interface.
 pub struct Decoder<R> where R: io::Read {
     reader: R,
     buffer: Box<[u8; 32_768]>,
@@ -116,13 +110,6 @@ impl From<MadError> for SimplemadError {
 impl From<io::Error> for SimplemadError {
     fn from(err: io::Error) -> SimplemadError {
         SimplemadError::Read(err)
-    }
-}
-
-
-impl fmt::Debug for MadFixed32 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_f32())
     }
 }
 
@@ -307,7 +294,9 @@ impl<R> Decoder<R> where R: io::Read {
 
         let fresh_byte_count = (bytes_read + unused_byte_count) as u64;
         unsafe {
-            mad_stream_buffer(&mut self.stream, self.buffer.as_ptr(), fresh_byte_count as c_ulong);
+            mad_stream_buffer(&mut self.stream,
+                              self.buffer.as_ptr(),
+                              fresh_byte_count as c_ulong);
         }
 
         if self.stream.error == MadError::BufLen {
@@ -357,13 +346,36 @@ fn frame_duration(frame: &MadFrame) -> f64 {
 }
 
 impl MadFixed32 {
+    /// Construct a new MadFixed32 from a value in libmad's fixed-point format
     pub fn new(v: i32) -> MadFixed32 {
         MadFixed32 {
             value: v,
         }
     }
 
+    /// Get the raw fixed-point representation
+    pub fn to_raw(&self) -> i32 {
+        self.value
+    }
+
+    /// Convert to i16
+    pub fn to_i16(&self) -> i16 {
+        let frac_bits = 28;
+        let unity_value = 0x1000_0000;
+
+        let rounded_value = self.value + (1 << (frac_bits - 16));
+
+        let clipped_value =
+            max(-unity_value, min(rounded_value, unity_value - 1));
+
+        let quantized_value = clipped_value >> (frac_bits + 1 - 16);
+
+        quantized_value as i16
+    }
+
+    /// Convert to i32
     pub fn to_i32(&self) -> i32 {
+        // clip only
         if self.value > i32::max_value() / 8 {
             i32::max_value()
         } else if self.value < i32::min_value() / 8 {
@@ -373,14 +385,16 @@ impl MadFixed32 {
         }
     }
 
+    /// Convert to f32
     pub fn to_f32(&self) -> f32 {
-        // Divide by 2^28
-        (self.value as f32) / 268435456.0
+        // The big number is 2^28, as 28 is the fractional bit count)
+        f32::max(-1.0, f32::min(1.0, (self.value as f32) / 268435456.0))
     }
 
+    /// Convert to f64
     pub fn to_f64(&self) -> f64 {
-        // Divide by 2^28
-        (self.value as f64) / 268435456.0
+        // The big number is 2^28, as 28 is the fractional bit count)
+        f64::max(-1.0, f64::min(1.0, (self.value as f64) / 268435456.0))
     }
 }
 
@@ -393,6 +407,8 @@ impl From<i32> for MadFixed32 {
 impl From<f32> for MadFixed32 {
     fn from(v: f32) -> MadFixed32 {
         MadFixed32 {
+            // The big number is 2^28, as
+            // 28 is the fractional bit count)
             value: (v * 268435456.0) as i32,
         }
     }
@@ -401,6 +417,8 @@ impl From<f32> for MadFixed32 {
 impl From<f64> for MadFixed32 {
     fn from(v: f64) -> MadFixed32 {
         MadFixed32 {
+            // The big number is 2^28, as
+            // 28 is the fractional bit count)
             value: (v * 268435456.0) as i32,
         }
     }
@@ -687,6 +705,7 @@ mod test {
         assert_eq!(frame_count, 193);
     }
 
+    #[allow(unused_variables)]
     #[test]
     fn test_readme_md() {
         use std::fs::File;
@@ -694,17 +713,19 @@ mod test {
 
         let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
         let file = File::open(&path).unwrap();
+        let file2 = File::open(&path).unwrap();
         let decoder = Decoder::decode(file).unwrap();
 
         for decoding_result in decoder {
             match decoding_result {
                 Err(e) => println!("Error: {:?}", e),
                 Ok(frame) => {
-                  println!("Frame sample rate: {:?}", frame.sample_rate);
-                  println!("First audio sample (left channel): {:?}", frame.samples[0][0]);
-                  println!("First audio sample (right channel): {:?}", frame.samples[1][0]);
-                }
+                    println!("Frame sample rate: {}", frame.sample_rate);
+                    println!("First audio sample (left channel): {:?}", frame.samples[0][0]);
+                    println!("First audio sample (right channel): {:?}", frame.samples[1][0]);
+                },
             }
         }
+        let partial_decoder = Decoder::decode_interval(file2, 30_000_f64, 60_000_f64).unwrap();
     }
 }
