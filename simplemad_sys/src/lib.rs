@@ -1,6 +1,3 @@
-/*!
-*/
-
 #![crate_name = "simplemad_sys"]
 
 extern crate libc;
@@ -8,7 +5,6 @@ extern crate libc;
 use libc::types::os::arch::c95::{c_int, c_uint, c_ushort, size_t, c_long};
 use libc::types::common::c99::*;
 use libc::types::common::c95::c_void;
-use std::convert::From;
 use std::fmt::{self, Result, Debug};
 use std::ptr;
 
