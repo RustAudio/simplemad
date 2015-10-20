@@ -157,6 +157,7 @@ impl<R> Decoder<R> where R: io::Read {
 
     fn seek_to_start(&mut self) -> Result<Frame, SimplemadError> {
         match self.start_ms {
+            None => {},
             Some(start_time) => {
                 while self.position_ms < start_time {
                     match self.decode_header() {
@@ -172,7 +173,6 @@ impl<R> Decoder<R> where R: io::Read {
                     }
                 }
             },
-            None => {},
         }
 
         self.get_frame()
@@ -256,17 +256,10 @@ impl<R> Decoder<R> where R: io::Read {
             }
         }
 
-        let bytes_read = free_region_start - unused_byte_count;
-
-        if bytes_read == 0 {
-            return Ok(0);
-        }
-
-        let fresh_byte_count = (bytes_read + unused_byte_count) as u64;
         unsafe {
             mad_stream_buffer(&mut self.stream,
                               self.buffer.as_ptr(),
-                              fresh_byte_count as c_ulong);
+                              free_region_start as c_ulong);
         }
 
         // Suppress BufLen error since buffer was refilled
@@ -274,6 +267,7 @@ impl<R> Decoder<R> where R: io::Read {
             self.stream.error = MadError::None;
         }
 
+        let bytes_read = free_region_start - unused_byte_count;
         Ok(bytes_read)
     }
 }
