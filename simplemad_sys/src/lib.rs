@@ -8,6 +8,7 @@ extern crate libc;
 use libc::types::os::arch::c95::{c_int, c_uint, c_ushort, size_t, c_long};
 use libc::types::common::c99::*;
 use libc::types::common::c95::c_void;
+use std::convert::From;
 use std::fmt::{self, Result, Debug};
 use std::ptr;
 
@@ -301,7 +302,7 @@ pub struct MadPcm {
     pub sample_rate: c_uint,
     pub channels: uint16_t,
     pub length: uint16_t,
-    pub samples: [[int32_t; 1152]; 2],
+    pub samples: [[i32; 1152]; 2],
 }
 
 impl Default for MadPcm {

@@ -10,12 +10,12 @@ To begin, create a `Decoder` from a byte-oriented source using
 `Decoder::decode` or `Decoder::decode_interval`. Fetch results using
 `get_frame` or the `Iterator` interface.
 
-MP3 files often begin with metadata, which will cause libmad to produce errors.
-It is safe to ignore these errors until libmad reaches audio data and starts
-producing frames.
+MP3 files often begin or end with metadata, which will cause libmad to produce
+errors. It is safe to ignore these errors until libmad reaches the start of the
+audio data or the end of the file.
 
 ```Rust
-use simplemad::{Decoder, Frame};
+use simplemad::Decoder;
 use std::fs::File;
 use std::path::Path;
 
@@ -28,8 +28,8 @@ for decoding_result in decoder {
         Err(e) => println!("Error: {:?}", e),
         Ok(frame) => {
             println!("Frame sample rate: {}", frame.sample_rate);
-            println!("First audio sample (left channel): {}", frame.samples[0][0]);
-            println!("First audio sample (right channel): {}", frame.samples[1][0]);
+            println!("First audio sample (left channel): {:?}", frame.samples[0][0]);
+            println!("First audio sample (right channel): {:?}", frame.samples[1][0]);
         },
     }
 }
@@ -38,18 +38,12 @@ for decoding_result in decoder {
 Decode the interval from 30 seconds to 60 seconds:
 
 ```Rust
-let mut partial_decoder = Decoder::decode_interval(file, 30_000_f64, 60_000_f64).unwrap();
+let partial_decoder = Decoder::decode_interval(file, 30_000_f64, 60_000_f64).unwrap();
 ```
 
 # Documentation
 
 http://bendykst.github.io/doc/simplemad/index.html
-
-# Dependencies
-
- * libmad (FTP: ftp://ftp.mars.org/pub/mpeg/ or [SourceForge](http://sourceforge.net/project/showfiles.php?group_id=12349))
-
- * libc
 
 # License
 
