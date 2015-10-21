@@ -15,7 +15,7 @@ errors. It is safe to ignore these errors until libmad reaches the start of the
 audio data or the end of the file.
 
 ```Rust
-use simplemad::{Decoder, Frame};
+use simplemad::Decoder;
 use std::fs::File;
 use std::path::Path;
 
@@ -38,7 +38,7 @@ for decoding_result in decoder {
 Decode the interval from 30 seconds to 60 seconds:
 
 ```Rust
-let mut partial_decoder = Decoder::decode_interval(file, 30_000_f64, 60_000_f64).unwrap();
+let partial_decoder = Decoder::decode_interval(file, 30_000_f64, 60_000_f64).unwrap();
 ```
 
 # Documentation
