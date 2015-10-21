@@ -55,6 +55,12 @@ use simplemad_sys::*;
 pub struct Frame {
     /// Number of samples per second
     pub sample_rate: u32,
+    /// Stream bit rate
+    pub bit_rate: u32,
+    /// Audio layer (I, II or IIIII)
+    pub layer: MadLayer,
+    /// Single Channel, Dual Channel, Joint Stereo or Stereo
+    pub mode: MadMode,
     /// Samples are organized into a vector of channels. For
     /// stereo, the left channel is channel 0.
     pub samples: Vec<Vec<MadFixed32>>,
@@ -204,6 +210,9 @@ impl<R> Decoder<R> where R: io::Read {
         if error == MadError::None {
             let frame =
                 Frame {sample_rate: self.frame.header.sample_rate as u32,
+                       mode: self.frame.header.mode.clone(),
+                       layer: self.frame.header.layer.clone(),
+                       bit_rate: self.frame.header.bit_rate as u32,
                        samples: Vec::new(),
                        duration: frame_duration(&self.frame) as f32,
                        position: self.position_ms};
@@ -248,9 +257,12 @@ impl<R> Decoder<R> where R: io::Read {
 
         let frame =
             Frame {sample_rate: pcm.sample_rate as u32,
-                   samples: samples,
                    duration: frame_duration(&self.frame) as f32,
-                   position: self.position_ms};
+                   mode: self.frame.header.mode.clone(),
+                   layer: self.frame.header.layer.clone(),
+                   bit_rate: self.frame.header.bit_rate as u32,
+                   position: self.position_ms,
+                   samples: samples};
         Ok(frame)
     }
 
@@ -447,6 +459,7 @@ impl From<f64> for MadFixed32 {
 #[cfg(test)]
 mod test {
     use super::*;
+    use simplemad_sys::*;
     use std::io::BufReader;
     use std::fs::File;
     use std::path::Path;
@@ -483,6 +496,9 @@ mod test {
                 },
                 Ok(f) => {
                     frame_count += 1;
+                    assert_eq!(f.mode, MadMode::Stereo);
+                    assert_eq!(f.layer, MadLayer::LayerIII);
+                    assert_eq!(f.bit_rate, 128000);
                     assert_eq!(f.sample_rate, 44100);
                     assert_eq!(f.samples.len(), 0);
                 }
@@ -509,6 +525,9 @@ mod test {
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
+                    assert_eq!(f.mode, MadMode::Stereo);
+                    assert_eq!(f.layer, MadLayer::LayerIII);
+                    assert_eq!(f.bit_rate, 128000);
                     assert_eq!(f.samples.len(), 2);
                     assert_eq!(f.samples[0].len(), 1152);
                 }
@@ -609,6 +628,9 @@ mod test {
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
+                    assert_eq!(f.mode, MadMode::Stereo);
+                    assert_eq!(f.layer, MadLayer::LayerIII);
+                    assert_eq!(f.bit_rate, 128000);
                     assert_eq!(f.samples.len(), 2);
                     assert_eq!(f.samples[0].len(), 1152);
                 }
@@ -634,6 +656,9 @@ mod test {
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
+                    assert_eq!(f.mode, MadMode::JointStereo);
+                    assert_eq!(f.layer, MadLayer::LayerIII);
+                    assert_eq!(f.bit_rate, 128000);
                     assert_eq!(f.samples.len(), 2);
                     assert_eq!(f.samples[0].len(), 1152);
                 }
@@ -659,6 +684,8 @@ mod test {
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
+                    assert_eq!(f.mode, MadMode::Stereo);
+                    assert_eq!(f.layer, MadLayer::LayerIII);
                     assert_eq!(f.samples.len(), 2);
                     assert_eq!(f.samples[0].len(), 1152);
                 }
@@ -684,6 +711,9 @@ mod test {
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
+                    assert_eq!(f.mode, MadMode::Stereo);
+                    assert_eq!(f.layer, MadLayer::LayerIII);
+                    assert_eq!(f.bit_rate, 320000);
                     assert_eq!(f.samples.len(), 2);
                     assert_eq!(f.samples[0].len(), 1152);
                 }
@@ -709,6 +739,8 @@ mod test {
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
+                    assert_eq!(f.mode, MadMode::JointStereo);
+                    assert_eq!(f.layer, MadLayer::LayerIII);
                     assert_eq!(f.samples.len(), 2);
                     assert_eq!(f.samples[0].len(), 1152);
                 }
@@ -759,6 +791,9 @@ mod test {
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 24000);
+                    assert_eq!(f.mode, MadMode::Stereo);
+                    assert_eq!(f.layer, MadLayer::LayerIII);
+                    assert_eq!(f.bit_rate, 16000);
                     assert_eq!(f.samples.len(), 2);
                     assert_eq!(f.samples[0].len(), 576);
                 }
@@ -784,6 +819,9 @@ mod test {
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
+                    assert_eq!(f.mode, MadMode::SingleChannel);
+                    assert_eq!(f.layer, MadLayer::LayerIII);
+                    assert_eq!(f.bit_rate, 128000);
                     assert_eq!(f.samples.len(), 1);
                     assert_eq!(f.samples[0].len(), 1152);
                 },

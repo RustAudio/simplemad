@@ -220,22 +220,22 @@ impl fmt::Debug for MadSynth {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[repr(C)]
 pub enum MadLayer {
-    Layer1 = 1,
-    Layer2 = 2,
-    Layer3 = 3,
+    LayerI = 1,
+    LayerII = 2,
+    LayerIII = 3,
 }
 
 impl Default for MadLayer {
     fn default() -> MadLayer {
-        MadLayer::Layer1
+        MadLayer::LayerI
     }
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[repr(C)]
 pub enum MadMode {
     SingleChannel = 0,
