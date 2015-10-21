@@ -59,7 +59,7 @@ pub struct Frame {
     /// stereo, the left channel is channel 0.
     pub samples: Vec<Vec<MadFixed32>>,
     /// The duration of the frame in milliseconds
-    pub duration: ,
+    pub duration: f32,
     /// The position in milliseconds at the start of the frame
     pub position: f64,
 }
@@ -118,7 +118,7 @@ impl<R> Decoder<R> where R: io::Read {
     }
 
     /// Decode only the header information of each frame
-    pub fn headers_only(reader: R) -> Result<Decoder<R>, SimplemadError> {
+    pub fn decode_headers(reader: R) -> Result<Decoder<R>, SimplemadError> {
         Decoder::new(reader, None, None, true)
     }
 
@@ -456,7 +456,7 @@ mod test {
         let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
         let file = File::open(&path).unwrap();
         let bufreader = BufReader::new(file);
-        let decoder = Decoder::headers_only(bufreader).unwrap();
+        let decoder = Decoder::decode_headers(bufreader).unwrap();
 
         let duration =
             decoder.filter_map(|r| match r {
@@ -468,11 +468,11 @@ mod test {
     }
 
     #[test]
-    fn test_headers_only() {
+    fn test_decode_headers() {
         let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
         let file = File::open(&path).unwrap();
         let bufreader = BufReader::new(file);
-        let decoder = Decoder::headers_only(bufreader).unwrap();
+        let decoder = Decoder::decode_headers(bufreader).unwrap();
         let mut frame_count = 0;
         let mut error_count = 0;
 
