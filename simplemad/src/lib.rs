@@ -57,7 +57,7 @@ pub struct Frame {
     pub sample_rate: u32,
     /// Stream bit rate
     pub bit_rate: u32,
-    /// Audio layer (I, II or IIIII)
+    /// Audio layer (I, II or III)
     pub layer: MadLayer,
     /// Single Channel, Dual Channel, Joint Stereo or Stereo
     pub mode: MadMode,
