@@ -563,6 +563,15 @@ mod test {
     }
 
     #[test]
+    fn test_interval_beyond_eof() {
+        let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
+        let file = File::open(&path).unwrap();
+        let mut decoder = Decoder::decode_interval(file, 60000.0, 65000.0).unwrap();
+
+        assert!(decoder.next().is_none());
+    }
+
+    #[test]
     fn test_decode_empty_interval() {
         let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
         let file = File::open(&path).unwrap();
