@@ -1,44 +1,47 @@
-/*!
-This crate provides an interface to libmad, the MPEG audio decoding library.
-
-To begin, create a `Decoder` from a byte-oriented source using `Decoder::decode`
-or `Decoder::decode_interval`. Fetch results using `get_frame` or the `Iterator`
-interface. MP3 files often begin or end with metadata, which will cause libmad
-to produce errors. It is safe to ignore these errors until libmad reaches the
-start of the audio data or the end of the file.
-
-# Examples
-```no_run
-#![allow(unused_variables)]
-use simplemad::{Decoder, Frame};
-use std::fs::File;
-use std::path::Path;
-
-let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
-let file = File::open(&path).unwrap();
-let file_b = File::open(&path).unwrap();
-let decoder = Decoder::decode(file).unwrap();
-
-for decoding_result in decoder {
-    match decoding_result {
-        Err(e) => println!("Error: {:?}", e),
-        Ok(frame) => {
-            println!("Frame sample rate: {}", frame.sample_rate);
-            println!("First audio sample (left channel): {:?}", frame.samples[0][0]);
-            println!("First audio sample (right channel): {:?}", frame.samples[1][0]);
-        },
-    }
-}
-
+// !
+// This crate provides an interface to libmad, the MPEG audio decoding library.
+//
+// To begin, create a `Decoder` from a byte-oriented source using
+// `Decoder::decode`
+// or `Decoder::decode_interval`. Fetch results using `get_frame` or the
+// `Iterator`
+// interface. MP3 files often begin or end with metadata, which will cause
+// libmad
+// to produce errors. It is safe to ignore these errors until libmad reaches the
+// start of the audio data or the end of the file.
+//
+// # Examples
+// ```no_run
+// #![allow(unused_variables)]
+// use simplemad::{Decoder, Frame};
+// use std::fs::File;
+// use std::path::Path;
+//
+// let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
+// let file = File::open(&path).unwrap();
+// let file_b = File::open(&path).unwrap();
+// let decoder = Decoder::decode(file).unwrap();
+//
+// for decoding_result in decoder {
+// match decoding_result {
+// Err(e) => println!("Error: {:?}", e),
+// Ok(frame) => {
+// println!("Frame sample rate: {}", frame.sample_rate);
+// println!("First audio sample (left channel): {:?}", frame.samples[0][0]);
+// println!("First audio sample (right channel): {:?}", frame.samples[1][0]);
+// },
+// }
+// }
+//
 // Decode the interval from 1s to 2s (to the nearest frame),
-let partial_decoder = Decoder::decode_interval(file_b, 1_000_f64, 2_000_f64);
-let frames: Vec<Frame> = partial_decoder.unwrap()
-                                        .filter_map(|r| match r {
-                                            Ok(f) => Some(f),
-                                            Err(_) => None})
-                                        .collect();
-```
-*/
+// let partial_decoder = Decoder::decode_interval(file_b, 1_000_f64, 2_000_f64);
+// let frames: Vec<Frame> = partial_decoder.unwrap()
+// .filter_map(|r| match r {
+// Ok(f) => Some(f),
+// Err(_) => None})
+// .collect();
+// ```
+//
 
 #![crate_name = "simplemad"]
 
@@ -74,7 +77,9 @@ pub struct Frame {
 ///
 /// Create a decoder using `decode` or `decode_interval`. Fetch
 /// results with `get_frame` or the `Iterator` interface.
-pub struct Decoder<R> where R: io::Read {
+pub struct Decoder<R>
+    where R: io::Read
+{
     reader: R,
     buffer: Box<[u8; 32_768]>,
     headers_only: bool,
@@ -90,19 +95,19 @@ impl<R> Decoder<R> where R: io::Read {
     fn new(reader: R,
            start_ms: Option<f64>,
            end_ms: Option<f64>,
-           headers_only: bool) -> Result<Decoder<R>, SimplemadError> {
-        let mut new_decoder =
-            Decoder {
-                reader: reader,
-                buffer: Box::new([0u8; 32_768]),
-                headers_only: headers_only,
-                stream: Default::default(),
-                synth: Default::default(),
-                frame: Default::default(),
-                start_ms: start_ms,
-                end_ms: end_ms,
-                position_ms: 0.0,
-            };
+           headers_only: bool)
+           -> Result<Decoder<R>, SimplemadError> {
+        let mut new_decoder = Decoder {
+            reader: reader,
+            buffer: Box::new([0u8; 32_768]),
+            headers_only: headers_only,
+            stream: Default::default(),
+            synth: Default::default(),
+            frame: Default::default(),
+            start_ms: start_ms,
+            end_ms: end_ms,
+            position_ms: 0.0,
+        };
 
         let bytes_read = try!(new_decoder.reader.read(&mut *new_decoder.buffer));
 
@@ -129,35 +134,40 @@ impl<R> Decoder<R> where R: io::Read {
     }
 
     /// Decode part of a file from `start_time` to `end_time`, measured in milliseconds
-    pub fn decode_interval(reader: R, start_time: f64, end_time: f64)
-            -> Result<Decoder<R>, SimplemadError> {
+    pub fn decode_interval(reader: R,
+                           start_time: f64,
+                           end_time: f64)
+                           -> Result<Decoder<R>, SimplemadError> {
         Decoder::new(reader, Some(start_time), Some(end_time), false)
     }
 
     /// Get the next decoding result, either a `Frame` or a `SimplemadError`
     pub fn get_frame(&mut self) -> Result<Frame, SimplemadError> {
         match self.start_ms {
-            Some(t) if self.position_ms < t => { return self.seek_to_start() },
-            _ => {},
+            Some(t) if self.position_ms < t => {
+                return self.seek_to_start();
+            }
+            _ => {}
         }
 
         match self.end_ms {
-            Some(t) if self.position_ms > t => { return Err(SimplemadError::EOF) },
-            _ => {},
+            Some(t) if self.position_ms > t => {
+                return Err(SimplemadError::EOF);
+            }
+            _ => {}
         }
 
-        let decoding_result =
-            if self.headers_only {
-                self.decode_header_only()
-            } else {
-                self.decode_frame()
-            };
+        let decoding_result = if self.headers_only {
+            self.decode_header_only()
+        } else {
+            self.decode_frame()
+        };
 
         match decoding_result {
             Ok(frame) => {
                 self.position_ms += frame_duration(&self.frame);
                 Ok(frame)
-            },
+            }
             Err(SimplemadError::Mad(MadError::BufLen)) => {
                 // Refill buffer and try again
                 self.stream.error = MadError::None;
@@ -166,35 +176,41 @@ impl<R> Decoder<R> where R: io::Read {
                     Ok(0) => Err(SimplemadError::EOF),
                     Ok(_) => self.get_frame(),
                 }
-            },
+            }
             Err(SimplemadError::Mad(e)) => {
                 if error_is_recoverable(&e) {
                     self.stream.error = MadError::None;
                 }
                 Err(SimplemadError::Mad(e))
-            },
+            }
             Err(e) => Err(e),
         }
     }
 
     fn seek_to_start(&mut self) -> Result<Frame, SimplemadError> {
         match self.start_ms {
-            None => {},
+            None => {}
             Some(start_time) => {
                 while self.position_ms < start_time {
                     match self.decode_header_only() {
-                        Ok(frame) => { self.position_ms += frame.duration as f64 },
+                        Ok(frame) => {
+                            self.position_ms += frame.duration as f64
+                        }
                         Err(SimplemadError::Mad(MadError::BufLen)) => {
                             match self.refill_buffer() {
-                                Ok(0) => { return Err(SimplemadError::EOF) },
-                                Err(e) => { return Err(SimplemadError::Read(e)) },
-                                Ok(_) => { },
+                                Ok(0) => {
+                                    return Err(SimplemadError::EOF);
+                                }
+                                Err(e) => {
+                                    return Err(SimplemadError::Read(e));
+                                }
+                                Ok(_) => {}
                             }
-                        },
+                        }
                         Err(e) => return Err(e),
                     }
                 }
-            },
+            }
         }
 
         self.get_frame()
@@ -208,14 +224,15 @@ impl<R> Decoder<R> where R: io::Read {
         let error = self.stream.error.clone();
 
         if error == MadError::None {
-            let frame =
-                Frame {sample_rate: self.frame.header.sample_rate as u32,
-                       mode: self.frame.header.mode.clone(),
-                       layer: self.frame.header.layer.clone(),
-                       bit_rate: self.frame.header.bit_rate as u32,
-                       samples: Vec::new(),
-                       duration: frame_duration(&self.frame) as f32,
-                       position: self.position_ms};
+            let frame = Frame {
+                sample_rate: self.frame.header.sample_rate as u32,
+                mode: self.frame.header.mode.clone(),
+                layer: self.frame.header.layer.clone(),
+                bit_rate: self.frame.header.bit_rate as u32,
+                samples: Vec::new(),
+                duration: frame_duration(&self.frame) as f32,
+                position: self.position_ms,
+            };
             Ok(frame)
         } else if error_is_recoverable(&error) {
             self.stream.error = MadError::None;
@@ -248,33 +265,30 @@ impl<R> Decoder<R> where R: io::Read {
         for channel_idx in 0..pcm.channels as usize {
             let mut channel = Vec::with_capacity(pcm.length as usize);
             for sample_idx in 0..pcm.length as usize {
-                channel.push(
-                    MadFixed32::from(pcm.samples[channel_idx][sample_idx])
-                );
+                channel.push(MadFixed32::from(pcm.samples[channel_idx][sample_idx]));
             }
             samples.push(channel);
         }
 
-        let frame =
-            Frame {sample_rate: pcm.sample_rate as u32,
-                   duration: frame_duration(&self.frame) as f32,
-                   mode: self.frame.header.mode.clone(),
-                   layer: self.frame.header.layer.clone(),
-                   bit_rate: self.frame.header.bit_rate as u32,
-                   position: self.position_ms,
-                   samples: samples};
+        let frame = Frame {
+            sample_rate: pcm.sample_rate as u32,
+            duration: frame_duration(&self.frame) as f32,
+            mode: self.frame.header.mode.clone(),
+            layer: self.frame.header.layer.clone(),
+            bit_rate: self.frame.header.bit_rate as u32,
+            position: self.position_ms,
+            samples: samples,
+        };
         Ok(frame)
     }
 
     fn refill_buffer(&mut self) -> Result<usize, io::Error> {
         let buffer_len = self.buffer.len();
-        let next_frame_position =
-            (self.stream.next_frame - self.stream.buffer) as usize;
-        let unused_byte_count =
-            buffer_len - min(next_frame_position, buffer_len);
+        let next_frame_position = (self.stream.next_frame - self.stream.buffer) as usize;
+        let unused_byte_count = buffer_len - min(next_frame_position, buffer_len);
 
         // Shift unused data to front of buffer
-        for idx in 0 .. unused_byte_count {
+        for idx in 0..unused_byte_count {
             self.buffer[idx] = self.buffer[idx + next_frame_position];
         }
 
@@ -380,9 +394,7 @@ pub struct MadFixed32 {
 impl MadFixed32 {
     /// Construct a new MadFixed32 from a value in libmad's fixed-point format
     pub fn new(v: i32) -> MadFixed32 {
-        MadFixed32 {
-            value: v,
-        }
+        MadFixed32 { value: v }
     }
 
     /// Get the raw fixed-point representation
@@ -397,8 +409,7 @@ impl MadFixed32 {
 
         let rounded_value = self.value + (1 << (frac_bits - 16));
 
-        let clipped_value =
-            max(-unity_value, min(rounded_value, unity_value - 1));
+        let clipped_value = max(-unity_value, min(rounded_value, unity_value - 1));
 
         let quantized_value = clipped_value >> (frac_bits + 1 - 16);
 
@@ -432,7 +443,7 @@ impl MadFixed32 {
 
 impl From<i32> for MadFixed32 {
     fn from(v: i32) -> MadFixed32 {
-        MadFixed32 {value: v / 8}
+        MadFixed32 { value: v / 8 }
     }
 }
 
@@ -471,11 +482,13 @@ mod test {
         let bufreader = BufReader::new(file);
         let decoder = Decoder::decode_headers(bufreader).unwrap();
 
-        let duration =
-            decoder.filter_map(|r| match r {
-                       Ok(f) => Some(f.duration),
-                       Err(_) => None})
-                   .fold(0.0, |acc, dur| acc + (dur as f64));
+        let duration = decoder.filter_map(|r| {
+                                  match r {
+                                      Ok(f) => Some(f.duration),
+                                      Err(_) => None,
+                                  }
+                              })
+                              .fold(0.0, |acc, dur| acc + (dur as f64));
 
         assert!(f64::abs(duration - 5041.0) < 1.0);
     }
@@ -492,8 +505,10 @@ mod test {
         for item in decoder {
             match item {
                 Err(_) => {
-                    if frame_count > 0 { error_count += 1; }
-                },
+                    if frame_count > 0 {
+                        error_count += 1;
+                    }
+                }
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.mode, MadMode::Stereo);
@@ -520,8 +535,10 @@ mod test {
         for item in decoder {
             match item {
                 Err(_) => {
-                    if frame_count > 0 { error_count += 1; }
-                },
+                    if frame_count > 0 {
+                        error_count += 1;
+                    }
+                }
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
@@ -548,8 +565,10 @@ mod test {
         for item in decoder {
             match item {
                 Err(_) => {
-                    if frame_count > 0 { error_count += 1; }
-                },
+                    if frame_count > 0 {
+                        error_count += 1;
+                    }
+                }
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
@@ -582,8 +601,10 @@ mod test {
         for item in decoder {
             match item {
                 Err(_) => {
-                    if frame_count > 0 { error_count += 1; }
-                },
+                    if frame_count > 0 {
+                        error_count += 1;
+                    }
+                }
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
@@ -607,8 +628,10 @@ mod test {
         for item in decoder {
             match item {
                 Err(_) => {
-                    if frame_count > 0 { error_count += 1; }
-                },
+                    if frame_count > 0 {
+                        error_count += 1;
+                    }
+                }
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
@@ -632,8 +655,10 @@ mod test {
         for item in decoder {
             match item {
                 Err(_) => {
-                    if frame_count > 0 { error_count += 1; }
-                },
+                    if frame_count > 0 {
+                        error_count += 1;
+                    }
+                }
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
@@ -660,8 +685,10 @@ mod test {
         for item in decoder {
             match item {
                 Err(_) => {
-                    if frame_count > 0 { error_count += 1; }
-                },
+                    if frame_count > 0 {
+                        error_count += 1;
+                    }
+                }
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
@@ -688,8 +715,10 @@ mod test {
         for item in decoder {
             match item {
                 Err(_) => {
-                    if frame_count > 0 { error_count += 1; }
-                },
+                    if frame_count > 0 {
+                        error_count += 1;
+                    }
+                }
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
@@ -715,8 +744,10 @@ mod test {
         for item in decoder {
             match item {
                 Err(_) => {
-                    if frame_count > 0 { error_count += 1; }
-                },
+                    if frame_count > 0 {
+                        error_count += 1;
+                    }
+                }
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
@@ -743,8 +774,10 @@ mod test {
         for item in decoder {
             match item {
                 Err(_) => {
-                    if frame_count > 0 { error_count += 1 }
-                },
+                    if frame_count > 0 {
+                        error_count += 1
+                    }
+                }
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
@@ -770,8 +803,10 @@ mod test {
         for item in decoder {
             match item {
                 Err(_) => {
-                    if frame_count > 0 { error_count += 1 }
-                },
+                    if frame_count > 0 {
+                        error_count += 1
+                    }
+                }
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
@@ -795,8 +830,10 @@ mod test {
         for item in decoder {
             match item {
                 Err(_) => {
-                    if frame_count > 0 { error_count += 1; }
-                },
+                    if frame_count > 0 {
+                        error_count += 1;
+                    }
+                }
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 24000);
@@ -823,8 +860,10 @@ mod test {
         for item in decoder {
             match item {
                 Err(_) => {
-                    if frame_count > 0 { error_count += 1; }
-                },
+                    if frame_count > 0 {
+                        error_count += 1;
+                    }
+                }
                 Ok(f) => {
                     frame_count += 1;
                     assert_eq!(f.sample_rate, 44100);
@@ -833,7 +872,7 @@ mod test {
                     assert_eq!(f.bit_rate, 128000);
                     assert_eq!(f.samples.len(), 1);
                     assert_eq!(f.samples[0].len(), 1152);
-                },
+                }
             }
         }
         assert_eq!(error_count, 0);
@@ -856,9 +895,11 @@ mod test {
                 Err(e) => println!("Error: {:?}", e),
                 Ok(frame) => {
                     println!("Frame sample rate: {}", frame.sample_rate);
-                    println!("First audio sample (left channel): {:?}", frame.samples[0][0]);
-                    println!("First audio sample (right channel): {:?}", frame.samples[1][0]);
-                },
+                    println!("First audio sample (left channel): {:?}",
+                             frame.samples[0][0]);
+                    println!("First audio sample (right channel): {:?}",
+                             frame.samples[1][0]);
+                }
             }
         }
         let partial_decoder = Decoder::decode_interval(file2, 30_000_f64, 60_000_f64).unwrap();
