@@ -41,6 +41,10 @@ let frames: Vec<Frame> = partial_decoder.unwrap()
 */
 
 #![crate_name = "simplemad"]
+#![deny(missing_docs,
+        trivial_casts, trivial_numeric_casts,
+        unstable_features,
+        unused_import_braces)]
 
 extern crate simplemad_sys;
 
@@ -222,7 +226,7 @@ impl<R> Decoder<R> where R: io::Read {
 
         if error == MadError::None {
             let frame = Frame {
-                sample_rate: self.frame.header.sample_rate as u32,
+                sample_rate: self.frame.header.sample_rate,
                 mode: self.frame.header.mode.clone(),
                 layer: self.frame.header.layer.clone(),
                 bit_rate: self.frame.header.bit_rate as u32,
@@ -268,7 +272,7 @@ impl<R> Decoder<R> where R: io::Read {
         }
 
         let frame = Frame {
-            sample_rate: pcm.sample_rate as u32,
+            sample_rate: pcm.sample_rate,
             duration: frame_duration(&self.frame) as f32,
             mode: self.frame.header.mode.clone(),
             layer: self.frame.header.layer.clone(),
