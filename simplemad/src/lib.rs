@@ -42,14 +42,14 @@ let frames: Vec<Frame> = partial_decoder.unwrap()
 
 #![crate_name = "simplemad"]
 #![deny(missing_docs,
-        trivial_casts, trivial_numeric_casts,
+        trivial_casts,
+        trivial_numeric_casts,
         unstable_features,
         unused_import_braces)]
 
 extern crate simplemad_sys;
 
-use std::io;
-use std::io::Read;
+use std::io::{self, Read};
 use std::default::Default;
 use std::cmp::{min, max};
 use simplemad_sys::*;
@@ -222,13 +222,13 @@ impl<R> Decoder<R> where R: io::Read {
             mad_header_decode(&mut self.frame.header, &mut self.stream);
         }
 
-        let error = self.stream.error.clone();
+        let error = self.stream.error;
 
         if error == MadError::None {
             let frame = Frame {
                 sample_rate: self.frame.header.sample_rate,
-                mode: self.frame.header.mode.clone(),
-                layer: self.frame.header.layer.clone(),
+                mode: self.frame.header.mode,
+                layer: self.frame.header.layer,
                 bit_rate: self.frame.header.bit_rate as u32,
                 samples: Vec::new(),
                 duration: frame_duration(&self.frame) as f32,
@@ -249,7 +249,7 @@ impl<R> Decoder<R> where R: io::Read {
         }
 
         if self.stream.error != MadError::None {
-            return Err(SimplemadError::Mad(self.stream.error.clone()));
+            return Err(SimplemadError::Mad(self.stream.error));
         }
 
         unsafe {
@@ -257,7 +257,7 @@ impl<R> Decoder<R> where R: io::Read {
         }
 
         if self.stream.error != MadError::None {
-            return Err(SimplemadError::Mad(self.stream.error.clone()));
+            return Err(SimplemadError::Mad(self.stream.error));
         }
 
         let pcm = &self.synth.pcm;
@@ -274,8 +274,8 @@ impl<R> Decoder<R> where R: io::Read {
         let frame = Frame {
             sample_rate: pcm.sample_rate,
             duration: frame_duration(&self.frame) as f32,
-            mode: self.frame.header.mode.clone(),
-            layer: self.frame.header.layer.clone(),
+            mode: self.frame.header.mode,
+            layer: self.frame.header.layer,
             bit_rate: self.frame.header.bit_rate as u32,
             position: self.position_ms,
             samples: samples,
@@ -285,7 +285,7 @@ impl<R> Decoder<R> where R: io::Read {
 
     fn refill_buffer(&mut self) -> Result<usize, io::Error> {
         let buffer_len = self.buffer.len();
-        let next_frame_position = (self.stream.next_frame - self.stream.buffer) as usize;
+        let next_frame_position = self.stream.next_frame as usize - self.stream.buffer as usize;
         let unused_byte_count = buffer_len - min(next_frame_position, buffer_len);
 
         // Shift unused data to front of buffer
@@ -373,7 +373,7 @@ impl From<io::Error> for SimplemadError {
 }
 
 fn error_is_recoverable(err: &MadError) -> bool {
-    err == &MadError::None || (err.clone() as u16) & 0xff00 != 0
+    err == &MadError::None || (*err as u16) & 0xff00 != 0
 }
 
 fn frame_duration(frame: &MadFrame) -> f64 {
