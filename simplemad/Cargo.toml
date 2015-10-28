@@ -1,6 +1,6 @@
 [package]
 name = "simplemad"
-version = "0.7.0"
+version = "0.7.1"
 authors = ["Benjamin Dykstra <bendykst@gmail.com>"]
 description = "An interface for libmad, the MPEG audio decoding library"
 repository = "https://github.com/bendykst/simple-mad.rs"
