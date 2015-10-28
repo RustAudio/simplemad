@@ -442,6 +442,12 @@ impl MadFixed32 {
     }
 }
 
+impl From<i16> for MadFixed32 {
+    fn from(v: i16) -> MadFixed32 {
+        MadFixed32 { value: v as i32 * 8192 }
+    }
+}
+
 impl From<i32> for MadFixed32 {
     fn from(v: i32) -> MadFixed32 {
         MadFixed32 { value: v / 8 }
