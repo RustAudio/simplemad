@@ -38,7 +38,22 @@ for decoding_result in decoder {
 Decode the interval from 30 seconds to 60 seconds:
 
 ```Rust
-let partial_decoder = Decoder::decode_interval(file, 30_000_f64, 60_000_f64).unwrap();
+let partial_decoder = Decoder::decode_interval(file,
+                                               Duration::from_secs(30),
+                                               Duration::from_secs(60)).unwrap();
+```
+
+You can also elect to only decode the header of each frame. This is useful if
+you want to quickly determine the length of a file.
+
+```Rust
+let headers = Decoder::decode_headers(file).unwrap();
+let duration = headers.filter_map(|r| {
+                          match r {
+                              Ok(f) => Some(f.duration),
+                              Err(_) => None,
+                          }
+                      }).fold(Duration::new(0, 0), |acc, dtn| acc + dtn);
 ```
 
 # Documentation
