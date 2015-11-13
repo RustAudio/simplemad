@@ -95,13 +95,13 @@ pub struct Decoder<R>
 {
     reader: R,
     buffer: Box<[u8; 32_768]>,
-    headers_only: bool,
     stream: MadStream,
     synth: MadSynth,
     frame: MadFrame,
+    position: Duration,
+    headers_only: bool,
     start_time: Option<Duration>,
     end_time: Option<Duration>,
-    position: Duration,
 }
 
 impl<R> Decoder<R> where R: io::Read {
@@ -113,13 +113,13 @@ impl<R> Decoder<R> where R: io::Read {
         let mut new_decoder = Decoder {
             reader: reader,
             buffer: Box::new([0u8; 32_768]),
-            headers_only: headers_only,
             stream: Default::default(),
             synth: Default::default(),
             frame: Default::default(),
+            position: Duration::new(0, 0),
+            headers_only: headers_only,
             start_time: start_time,
             end_time: end_time,
-            position: Duration::new(0, 0),
         };
 
         let bytes_read = try!(new_decoder.reader.read(&mut *new_decoder.buffer));
@@ -156,18 +156,16 @@ impl<R> Decoder<R> where R: io::Read {
 
     /// Get the next decoding result, either a `Frame` or a `SimplemadError`
     pub fn get_frame(&mut self) -> Result<Frame, SimplemadError> {
-        match self.start_time {
-            Some(t) if self.position < t => {
+        if let Some(t) = self.start_time {
+            if self.position < t {
                 return self.seek_to_start();
             }
-            _ => {}
         }
 
-        match self.end_time {
-            Some(t) if self.position >= t => {
+        if let Some(t) = self.end_time {
+            if self.position >= t {
                 return Err(SimplemadError::EOF);
             }
-            _ => {}
         }
 
         let decoding_result = if self.headers_only {
@@ -183,45 +181,29 @@ impl<R> Decoder<R> where R: io::Read {
             }
             Err(SimplemadError::Mad(MadError::BufLen)) => {
                 // Refill buffer and try again
-                self.stream.error = MadError::None;
-                match self.refill_buffer() {
-                    Err(e) => Err(SimplemadError::Read(e)),
-                    Ok(0) => Err(SimplemadError::EOF),
-                    Ok(_) => self.get_frame(),
+                if try!(self.refill_buffer()) == 0 {
+                    Err(SimplemadError::EOF)
+                } else {
+                    self.get_frame()
                 }
-            }
-            Err(SimplemadError::Mad(e)) => {
-                if error_is_recoverable(&e) {
-                    self.stream.error = MadError::None;
-                }
-                Err(SimplemadError::Mad(e))
             }
             Err(e) => Err(e),
         }
     }
 
     fn seek_to_start(&mut self) -> Result<Frame, SimplemadError> {
-        match self.start_time {
-            None => {}
-            Some(start_time) => {
-                while self.position < start_time {
-                    match self.decode_header_only() {
-                        Ok(frame) => {
-                            self.position = self.position + frame.duration;
-                        }
-                        Err(SimplemadError::Mad(MadError::BufLen)) => {
-                            match self.refill_buffer() {
-                                Ok(0) => {
-                                    return Err(SimplemadError::EOF);
-                                }
-                                Err(e) => {
-                                    return Err(SimplemadError::Read(e));
-                                }
-                                Ok(_) => {}
-                            }
-                        }
-                        Err(e) => return Err(e),
+        if let Some(start_time) = self.start_time {
+            while self.position < start_time {
+                match self.decode_header_only() {
+                    Ok(frame) => {
+                        self.position = self.position + frame.duration;
                     }
+                    Err(SimplemadError::Mad(MadError::BufLen)) => {
+                        if try!(self.refill_buffer()) == 0 {
+                            return Err(SimplemadError::EOF);
+                        }
+                    }
+                    Err(e) => return Err(e),
                 }
             }
         }
@@ -235,25 +217,19 @@ impl<R> Decoder<R> where R: io::Read {
             mad_header_decode(&mut self.frame.header, &mut self.stream);
         }
 
-        let error = self.stream.error;
-
-        if error == MadError::None {
-            let frame = Frame {
-                sample_rate: self.frame.header.sample_rate,
-                mode: self.frame.header.mode,
-                layer: self.frame.header.layer,
-                bit_rate: self.frame.header.bit_rate as u32,
-                samples: Vec::new(),
-                duration: frame_duration(&self.frame),
-                position: self.position,
-            };
-            Ok(frame)
-        } else if error_is_recoverable(&error) {
-            self.stream.error = MadError::None;
-            Err(SimplemadError::Mad(error))
-        } else {
-            Err(SimplemadError::Mad(error))
+        if let Some(error) = self.check_error() {
+            return Err(SimplemadError::Mad(error));
         }
+
+        Ok(Frame {
+            sample_rate: self.frame.header.sample_rate,
+            mode: self.frame.header.mode,
+            layer: self.frame.header.layer,
+            bit_rate: self.frame.header.bit_rate as u32,
+            samples: Vec::new(),
+            duration: frame_duration(&self.frame),
+            position: self.position,
+        })
     }
 
     #[allow(trivial_numeric_casts)] // header.bit_rate is sometimes u32
@@ -262,30 +238,31 @@ impl<R> Decoder<R> where R: io::Read {
             mad_frame_decode(&mut self.frame, &mut self.stream);
         }
 
-        if self.stream.error != MadError::None {
-            return Err(SimplemadError::Mad(self.stream.error));
+        if let Some(error) = self.check_error() {
+            return Err(SimplemadError::Mad(error));
         }
 
         unsafe {
             mad_synth_frame(&mut self.synth, &mut self.frame);
         }
 
-        if self.stream.error != MadError::None {
-            return Err(SimplemadError::Mad(self.stream.error));
+        if let Some(error) = self.check_error() {
+            return Err(SimplemadError::Mad(error));
         }
 
         let pcm = &self.synth.pcm;
-        let mut samples: Vec<Vec<MadFixed32>> = Vec::new();
+        let samples = pcm.samples
+                         .into_iter()
+                         .take(pcm.channels as usize)
+                         .map(|ch| {
+                             ch.into_iter()
+                               .take(pcm.length as usize)
+                               .map(|sample| MadFixed32::from(*sample))
+                               .collect()
+                         })
+                         .collect();
 
-        for channel_idx in 0..pcm.channels as usize {
-            let mut channel = Vec::with_capacity(pcm.length as usize);
-            for sample_idx in 0..pcm.length as usize {
-                channel.push(MadFixed32::from(pcm.samples[channel_idx][sample_idx]));
-            }
-            samples.push(channel);
-        }
-
-        let frame = Frame {
+        Ok(Frame {
             sample_rate: pcm.sample_rate,
             duration: frame_duration(&self.frame),
             mode: self.frame.header.mode,
@@ -293,8 +270,7 @@ impl<R> Decoder<R> where R: io::Read {
             bit_rate: self.frame.header.bit_rate as u32,
             position: self.position,
             samples: samples,
-        };
-        Ok(frame)
+        })
     }
 
     fn refill_buffer(&mut self) -> Result<usize, io::Error> {
@@ -311,10 +287,9 @@ impl<R> Decoder<R> where R: io::Read {
         let mut free_region_start = unused_byte_count;
         while free_region_start != buffer_len {
             let slice = &mut self.buffer[free_region_start..buffer_len];
-            match self.reader.read(slice) {
-                Err(e) => return Err(e),
-                Ok(0) => break,
-                Ok(n) => free_region_start += n,
+            match try!(self.reader.read(slice)) {
+                0 => break,
+                n => free_region_start += n,
             }
         }
 
@@ -324,29 +299,28 @@ impl<R> Decoder<R> where R: io::Read {
                               free_region_start as c_ulong);
         }
 
-        // Suppress BufLen error since buffer was refilled
-        if self.stream.error == MadError::BufLen {
-            self.stream.error = MadError::None;
-        }
-
         let bytes_read = free_region_start - unused_byte_count;
         Ok(bytes_read)
+    }
+
+    fn check_error(&mut self) -> Option<MadError> {
+        if self.stream.error != MadError::None {
+            let error = self.stream.error;
+            self.stream.error = MadError::None;
+            Some(error)
+        } else {
+            None
+        }
     }
 }
 
 impl<R> Iterator for Decoder<R> where R: io::Read {
     type Item = Result<Frame, SimplemadError>;
     fn next(&mut self) -> Option<Result<Frame, SimplemadError>> {
-        if !error_is_recoverable(&self.stream.error) {
-            return None;
-        }
-
         match self.get_frame() {
             Ok(f) => Some(Ok(f)),
             Err(SimplemadError::EOF) => None,
-            Err(e) => {
-                Some(Err(e))
-            }
+            Err(e) => Some(Err(e)),
         }
     }
 }
@@ -386,10 +360,6 @@ impl From<io::Error> for SimplemadError {
     }
 }
 
-fn error_is_recoverable(err: &MadError) -> bool {
-    err == &MadError::None || (*err as u16) & 0xff00 != 0
-}
-
 fn frame_duration(frame: &MadFrame) -> Duration {
     let duration = &frame.header.duration;
     Duration::new(duration.seconds as u64,
@@ -422,7 +392,6 @@ impl MadFixed32 {
     pub fn to_i16(&self) -> i16 {
         let frac_bits = 28;
         let unity_value = 0x1000_0000;
-
         let rounded_value = self.value + (1 << (frac_bits - 16));
         let clipped_value = max(-unity_value, min(rounded_value, unity_value - 1));
         let quantized_value = clipped_value >> (frac_bits + 1 - 16);
