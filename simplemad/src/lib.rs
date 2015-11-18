@@ -55,7 +55,6 @@
 #![crate_name = "simplemad"]
 #![deny(missing_docs,
         trivial_casts,
-        trivial_numeric_casts,
         unstable_features,
         unused_import_braces)]
 
@@ -211,7 +210,6 @@ impl<R> Decoder<R> where R: io::Read {
         self.get_frame()
     }
 
-    #[allow(trivial_numeric_casts)] // header.bit_rate is sometimes u32
     fn decode_header_only(&mut self) -> Result<Frame, SimplemadError> {
         unsafe {
             mad_header_decode(&mut self.frame.header, &mut self.stream);
@@ -232,7 +230,6 @@ impl<R> Decoder<R> where R: io::Read {
         })
     }
 
-    #[allow(trivial_numeric_casts)] // header.bit_rate is sometimes u32
     fn decode_frame(&mut self) -> Result<Frame, SimplemadError> {
         unsafe {
             mad_frame_decode(&mut self.frame, &mut self.stream);
@@ -363,7 +360,7 @@ impl From<io::Error> for SimplemadError {
 fn frame_duration(frame: &MadFrame) -> Duration {
     let duration = &frame.header.duration;
     Duration::new(duration.seconds as u64,
-                  (duration.fraction * 1_000_000_000 / 352800000) as u32)
+                  ((duration.fraction as u64) * 1_000_000_000 / 352800000) as u32)
 }
 
 #[derive(Clone, Copy, Default, Debug)]
