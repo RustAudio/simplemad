@@ -25,10 +25,10 @@ fn main() {
 
     } else if target.contains("arm") {
         gcc.define("FPM_ARM", None);
-        // TODO: I'm not sure if compiling assembly works
-        //gcc.define("ASO_INTERLEAVE1", None);
-        //gcc.define("ASO_IMDCT", None);
-        //gcc.file("libmad-src/imdct_l_arm.S");
+    // TODO: I'm not sure if compiling assembly works
+    //gcc.define("ASO_INTERLEAVE1", None);
+    //gcc.define("ASO_IMDCT", None);
+    //gcc.file("libmad-src/imdct_l_arm.S");
 
     } else if target.contains("mips") {
         gcc.define("FPM_MIPS", None);
@@ -46,15 +46,15 @@ fn main() {
     };
 
     gcc.file("libmad-src/version.c")
-       .file("libmad-src/fixed.c")
-       .file("libmad-src/bit.c")
-       .file("libmad-src/timer.c")
-       .file("libmad-src/stream.c")
-       .file("libmad-src/frame.c")
-       .file("libmad-src/synth.c")
-       .file("libmad-src/decoder.c")
-       .file("libmad-src/layer12.c")
-       .file("libmad-src/layer3.c")
-       .file("libmad-src/huffman.c")
-       .compile("libmad.a");  // the official name is `libmad.la` but gcc-rs forbids that
+        .file("libmad-src/fixed.c")
+        .file("libmad-src/bit.c")
+        .file("libmad-src/timer.c")
+        .file("libmad-src/stream.c")
+        .file("libmad-src/frame.c")
+        .file("libmad-src/synth.c")
+        .file("libmad-src/decoder.c")
+        .file("libmad-src/layer12.c")
+        .file("libmad-src/layer3.c")
+        .file("libmad-src/huffman.c")
+        .compile("libmad.a"); // the official name is `libmad.la` but gcc-rs forbids that
 }
