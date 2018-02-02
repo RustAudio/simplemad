@@ -10,7 +10,7 @@ fn main() {
     };
 
     // attempt to compile libmad manually
-    let mut gcc = gcc::Config::new();
+    let mut gcc = gcc::Build::new();
     gcc.include("libmad-src");
     gcc.define("HAVE_CONFIG_H", None);
 
