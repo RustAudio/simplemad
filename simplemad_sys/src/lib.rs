@@ -8,7 +8,6 @@ use std::ptr;
 
 pub use libc::c_ulong;
 
-#[link(name = "mad")]
 extern {
     pub fn mad_decoder_init(decoder: *mut MadDecoder,
                             message: *mut c_void,
