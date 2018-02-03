@@ -1,0 +1,2 @@
+[workspace]
+members = ["simplemad_sys", "simplemad"]
