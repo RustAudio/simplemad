@@ -254,7 +254,7 @@ impl<R> Decoder<R> where R: io::Read {
                          .map(|ch| {
                              ch.into_iter()
                                .take(pcm.length as usize)
-                               .map(|sample| MadFixed32::from(*sample))
+                               .map(|sample| MadFixed32::new(*sample))
                                .collect()
                          })
                          .collect();
