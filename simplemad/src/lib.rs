@@ -59,7 +59,7 @@
         unused_import_braces)]
 
 extern crate simplemad_sys;
-use std::io::{self, Read};
+use std::io::{self};
 use std::default::Default;
 use std::cmp::{min, max};
 use std::time::Duration;
@@ -93,7 +93,7 @@ pub struct Decoder<R>
     where R: io::Read
 {
     reader: R,
-    buffer: Box<[u8; 32_768]>,
+    buffer: Box<[u8; 0x8000]>,
     stream: MadStream,
     synth: MadSynth,
     frame: MadFrame,
@@ -111,7 +111,7 @@ impl<R> Decoder<R> where R: io::Read {
            -> Result<Decoder<R>, SimplemadError> {
         let mut new_decoder = Decoder {
             reader: reader,
-            buffer: Box::new([0u8; 32_768]),
+            buffer: Box::new([0u8; 0x8000]),
             stream: Default::default(),
             synth: Default::default(),
             frame: Default::default(),
@@ -127,7 +127,7 @@ impl<R> Decoder<R> where R: io::Read {
             mad_stream_init(&mut new_decoder.stream);
             mad_frame_init(&mut new_decoder.frame);
             mad_synth_init(&mut new_decoder.synth);
-            mad_stream_buffer(&mut new_decoder.stream,
+            mad_stream_buffer(&new_decoder.stream,
                               new_decoder.buffer.as_ptr(),
                               bytes_read as c_ulong);
         }
@@ -175,7 +175,7 @@ impl<R> Decoder<R> where R: io::Read {
 
         match decoding_result {
             Ok(frame) => {
-                self.position = self.position + frame_duration(&self.frame);
+                self.position += frame_duration(&self.frame);
                 Ok(frame)
             }
             Err(SimplemadError::Mad(MadError::BufLen)) => {
@@ -195,7 +195,7 @@ impl<R> Decoder<R> where R: io::Read {
             while self.position < start_time {
                 match self.decode_header_only() {
                     Ok(frame) => {
-                        self.position = self.position + frame.duration;
+                        self.position += frame.duration;
                     }
                     Err(SimplemadError::Mad(MadError::BufLen)) => {
                         if try!(self.refill_buffer()) == 0 {
@@ -291,7 +291,7 @@ impl<R> Decoder<R> where R: io::Read {
         }
 
         unsafe {
-            mad_stream_buffer(&mut self.stream,
+            mad_stream_buffer(&self.stream,
                               self.buffer.as_ptr(),
                               free_region_start as c_ulong);
         }
@@ -360,7 +360,7 @@ impl From<io::Error> for SimplemadError {
 fn frame_duration(frame: &MadFrame) -> Duration {
     let duration = &frame.header.duration;
     Duration::new(duration.seconds as u64,
-                  ((duration.fraction as u64) * 1_000_000_000 / 352800000) as u32)
+                  ((duration.fraction as u64) * 1_000_000_000 / 352_800_000) as u32)
 }
 
 #[derive(Clone, Copy, Default, Debug)]
@@ -417,13 +417,13 @@ impl MadFixed32 {
     /// Convert to f64
     pub fn to_f64(&self) -> f64 {
         // The big number is 2^28, as 28 is the fractional bit count)
-        f64::max(-1.0, f64::min(1.0, (self.value as f64) / 268435456.0))
+        f64::max(-1.0, f64::min(1.0, (f64::from(self.value)) / 268435456.0))
     }
 }
 
 impl From<i16> for MadFixed32 {
     fn from(v: i16) -> MadFixed32 {
-        MadFixed32 { value: v as i32 * 8192 }
+        MadFixed32 { value: i32::from(v) * 0x2000 }
     }
 }
 

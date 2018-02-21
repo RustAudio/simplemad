@@ -3,12 +3,11 @@
 extern crate libc;
 
 use libc::{c_void, c_char, c_int, c_uint, c_ushort, c_long, uint16_t};
-use std::fmt::{self, Result, Debug};
+use std::fmt::{self};
 use std::ptr;
 
 pub use libc::c_ulong;
 
-#[link(name = "mad")]
 extern {
     pub fn mad_decoder_init(decoder: *mut MadDecoder,
                             message: *mut c_void,
@@ -42,7 +41,7 @@ extern {
     pub fn mad_synth_frame(synth: &mut MadSynth, frame: &mut MadFrame);
 }
 
-/// libmad callbacks return MadFlow values, which are used to control the decoding process
+/// libmad callbacks return `MadFlow` values, which are used to control the decoding process
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub enum MadFlow {
