@@ -53,15 +53,12 @@
 */
 
 #![crate_name = "simplemad"]
-#![deny(missing_docs,
-        trivial_casts,
-        unstable_features,
-        unused_import_braces)]
+#![deny(missing_docs, trivial_casts, unstable_features, unused_import_braces)]
 
 extern crate simplemad_sys;
-use std::io::{self};
+use std::io;
 use std::default::Default;
-use std::cmp::{min, max};
+use std::cmp::{max, min};
 use std::time::Duration;
 use simplemad_sys::*;
 
@@ -441,7 +438,9 @@ impl MadFixed32 {
 
 impl From<i16> for MadFixed32 {
     fn from(v: i16) -> MadFixed32 {
-        MadFixed32 { value: i32::from(v) * 0x2000 }
+        MadFixed32 {
+            value: i32::from(v) * 0x2000,
+        }
     }
 }
 
