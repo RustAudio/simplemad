@@ -8,21 +8,20 @@ use std::ptr;
 
 pub use libc::c_ulong;
 
-extern {
-    pub fn mad_decoder_init(decoder: *mut MadDecoder,
-                            message: *mut c_void,
-                            input_cb: extern fn(message: *mut c_void,
-                                                stream: &MadStream) -> MadFlow,
-                            header_cb: extern fn(message: *mut c_void,
-                                                 header: &MadHeader) -> MadFlow,
-                            filter_cb: extern fn(),
-                            output_cb: extern fn(message: *mut c_void,
-                                                 header: &MadHeader,
-                                                 pcm: &MadPcm) -> MadFlow,
-                            error_cb: extern fn(message: *mut c_void,
-                                                stream: &MadStream,
-                                                frame: *const c_void) -> MadFlow,
-                            message_cb: extern fn());
+extern "C" {
+    pub fn mad_decoder_init(
+        decoder: *mut MadDecoder,
+        message: *mut c_void,
+        input_cb: extern "C" fn(message: *mut c_void, stream: &MadStream) -> MadFlow,
+        header_cb: extern "C" fn(message: *mut c_void, header: &MadHeader) -> MadFlow,
+        filter_cb: extern "C" fn(),
+        output_cb: extern "C" fn(message: *mut c_void, header: &MadHeader, pcm: &MadPcm) -> MadFlow,
+        error_cb: extern "C" fn(message: *mut c_void,
+                                stream: &MadStream,
+                                frame: *const c_void)
+                                -> MadFlow,
+        message_cb: extern "C" fn(),
+    );
 
     pub fn mad_decoder_run(decoder: &mut MadDecoder, mode: MadDecoderMode) -> c_int;
     pub fn mad_decoder_finish(decoder: &mut MadDecoder) -> c_int;
@@ -230,10 +229,12 @@ impl Default for MadSynth {
 
 impl fmt::Debug for MadSynth {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,
-               "MadSynth {{phase: {}, pcm: {:?} }}",
-               self.phase,
-               self.pcm)
+        write!(
+            f,
+            "MadSynth {{phase: {}, pcm: {:?} }}",
+            self.phase,
+            self.pcm
+        )
     }
 }
 
@@ -326,11 +327,13 @@ impl Default for MadPcm {
 
 impl fmt::Debug for MadPcm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,
-               "MadPcm {{sample_rate: {}, channels: {}, length: {}}}",
-               self.sample_rate,
-               self.channels,
-               self.length)
+        write!(
+            f,
+            "MadPcm {{sample_rate: {}, channels: {}, length: {}}}",
+            self.sample_rate,
+            self.channels,
+            self.length
+        )
     }
 }
 
@@ -389,5 +392,4 @@ impl Default for MadDecoder {
 }
 
 #[cfg(test)]
-mod test {
-}
+mod test {}

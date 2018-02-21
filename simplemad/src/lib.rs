@@ -90,7 +90,8 @@ pub struct Frame {
 /// Create a decoder using `decode` or `decode_interval`. Fetch
 /// results with `get_frame` or the `Iterator` interface.
 pub struct Decoder<R>
-    where R: io::Read
+where
+    R: io::Read,
 {
     reader: R,
     buffer: Box<[u8; 0x8000]>,
@@ -103,12 +104,16 @@ pub struct Decoder<R>
     end_time: Option<Duration>,
 }
 
-impl<R> Decoder<R> where R: io::Read {
-    fn new(reader: R,
-           start_time: Option<Duration>,
-           end_time: Option<Duration>,
-           headers_only: bool)
-           -> Result<Decoder<R>, SimplemadError> {
+impl<R> Decoder<R>
+where
+    R: io::Read,
+{
+    fn new(
+        reader: R,
+        start_time: Option<Duration>,
+        end_time: Option<Duration>,
+        headers_only: bool,
+    ) -> Result<Decoder<R>, SimplemadError> {
         let mut new_decoder = Decoder {
             reader: reader,
             buffer: Box::new([0u8; 0x8000]),
@@ -127,9 +132,11 @@ impl<R> Decoder<R> where R: io::Read {
             mad_stream_init(&mut new_decoder.stream);
             mad_frame_init(&mut new_decoder.frame);
             mad_synth_init(&mut new_decoder.synth);
-            mad_stream_buffer(&new_decoder.stream,
-                              new_decoder.buffer.as_ptr(),
-                              bytes_read as c_ulong);
+            mad_stream_buffer(
+                &mut new_decoder.stream,
+                new_decoder.buffer.as_ptr(),
+                bytes_read as c_ulong,
+            );
         }
 
         Ok(new_decoder)
@@ -146,10 +153,11 @@ impl<R> Decoder<R> where R: io::Read {
     }
 
     /// Decode part of a file from `start_time` to `end_time`
-    pub fn decode_interval(reader: R,
-                           start_time: Duration,
-                           end_time: Duration)
-                           -> Result<Decoder<R>, SimplemadError> {
+    pub fn decode_interval(
+        reader: R,
+        start_time: Duration,
+        end_time: Duration,
+    ) -> Result<Decoder<R>, SimplemadError> {
         Decoder::new(reader, Some(start_time), Some(end_time), false)
     }
 
@@ -249,15 +257,15 @@ impl<R> Decoder<R> where R: io::Read {
 
         let pcm = &self.synth.pcm;
         let samples = pcm.samples
-                         .into_iter()
-                         .take(pcm.channels as usize)
-                         .map(|ch| {
-                             ch.into_iter()
-                               .take(pcm.length as usize)
-                               .map(|sample| MadFixed32::from(*sample))
-                               .collect()
-                         })
-                         .collect();
+            .into_iter()
+            .take(pcm.channels as usize)
+            .map(|ch| {
+                ch.into_iter()
+                    .take(pcm.length as usize)
+                    .map(|sample| MadFixed32::from(*sample))
+                    .collect()
+            })
+            .collect();
 
         Ok(Frame {
             sample_rate: pcm.sample_rate,
@@ -291,9 +299,11 @@ impl<R> Decoder<R> where R: io::Read {
         }
 
         unsafe {
-            mad_stream_buffer(&self.stream,
-                              self.buffer.as_ptr(),
-                              free_region_start as c_ulong);
+            mad_stream_buffer(
+                &mut self.stream,
+                self.buffer.as_ptr(),
+                free_region_start as c_ulong,
+            );
         }
 
         let bytes_read = free_region_start - unused_byte_count;
@@ -311,7 +321,10 @@ impl<R> Decoder<R> where R: io::Read {
     }
 }
 
-impl<R> Iterator for Decoder<R> where R: io::Read {
+impl<R> Iterator for Decoder<R>
+where
+    R: io::Read,
+{
     type Item = Result<Frame, SimplemadError>;
     fn next(&mut self) -> Option<Result<Frame, SimplemadError>> {
         match self.get_frame() {
@@ -322,7 +335,10 @@ impl<R> Iterator for Decoder<R> where R: io::Read {
     }
 }
 
-impl<R> Drop for Decoder<R> where R: io::Read {
+impl<R> Drop for Decoder<R>
+where
+    R: io::Read,
+{
     fn drop(&mut self) {
         unsafe {
             mad_stream_finish(&mut self.stream);
@@ -359,8 +375,10 @@ impl From<io::Error> for SimplemadError {
 
 fn frame_duration(frame: &MadFrame) -> Duration {
     let duration = &frame.header.duration;
-    Duration::new(duration.seconds as u64,
-                  ((duration.fraction as u64) * 1_000_000_000 / 352_800_000) as u32)
+    Duration::new(
+        duration.seconds as u64,
+        ((duration.fraction as u64) * 1_000_000_000 / 352_800_000) as u32,
+    )
 }
 
 #[derive(Clone, Copy, Default, Debug)]
@@ -469,13 +487,12 @@ mod test {
         let bufreader = BufReader::new(file);
         let decoder = Decoder::decode_headers(bufreader).unwrap();
 
-        let duration = decoder.filter_map(|r| {
-                                  match r {
-                                      Ok(f) => Some(f.duration),
-                                      Err(_) => None,
-                                  }
-                              })
-                              .fold(Duration::new(0, 0), |acc, dtn| acc + dtn);
+        let duration = decoder
+            .filter_map(|r| match r {
+                Ok(f) => Some(f.duration),
+                Err(_) => None,
+            })
+            .fold(Duration::new(0, 0), |acc, dtn| acc + dtn);
 
         assert_eq!(duration, Duration::new(5, 41632464));
     }
@@ -545,9 +562,8 @@ mod test {
     fn test_decode_interval() {
         let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
         let file = File::open(&path).unwrap();
-        let decoder = Decoder::decode_interval(file,
-                                               Duration::from_secs(3),
-                                               Duration::from_secs(4)).unwrap();
+        let decoder =
+            Decoder::decode_interval(file, Duration::from_secs(3), Duration::from_secs(4)).unwrap();
         let mut frame_count = 0;
         let mut error_count = 0;
 
@@ -574,9 +590,9 @@ mod test {
     fn test_interval_beyond_eof() {
         let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
         let file = File::open(&path).unwrap();
-        let mut decoder = Decoder::decode_interval(file,
-                                                   Duration::from_secs(60),
-                                                   Duration::from_secs(65)).unwrap();
+        let mut decoder =
+            Decoder::decode_interval(file, Duration::from_secs(60), Duration::from_secs(65))
+                .unwrap();
 
         assert!(decoder.next().is_none());
     }
@@ -585,9 +601,8 @@ mod test {
     fn test_decode_empty_interval() {
         let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
         let file = File::open(&path).unwrap();
-        let decoder = Decoder::decode_interval(file,
-                                               Duration::from_secs(2),
-                                               Duration::from_secs(2)).unwrap();
+        let decoder =
+            Decoder::decode_interval(file, Duration::from_secs(2), Duration::from_secs(2)).unwrap();
         let mut frame_count = 0;
         let mut error_count = 0;
 
@@ -614,9 +629,9 @@ mod test {
     fn test_decode_overlong_interval() {
         let path = Path::new("sample_mp3s/constant_stereo_128.mp3");
         let file = File::open(&path).unwrap();
-        let decoder = Decoder::decode_interval(file,
-                                               Duration::from_secs(3),
-                                               Duration::from_secs(45)).unwrap();
+        let decoder =
+            Decoder::decode_interval(file, Duration::from_secs(3), Duration::from_secs(45))
+                .unwrap();
         let mut frame_count = 0;
         let mut error_count = 0;
 
@@ -890,15 +905,19 @@ mod test {
                 Err(e) => println!("Error: {:?}", e),
                 Ok(frame) => {
                     println!("Frame sample rate: {}", frame.sample_rate);
-                    println!("First audio sample (left channel): {:?}",
-                             frame.samples[0][0]);
-                    println!("First audio sample (right channel): {:?}",
-                             frame.samples[1][0]);
+                    println!(
+                        "First audio sample (left channel): {:?}",
+                        frame.samples[0][0]
+                    );
+                    println!(
+                        "First audio sample (right channel): {:?}",
+                        frame.samples[1][0]
+                    );
                 }
             }
         }
-        let partial_decoder = Decoder::decode_interval(file2,
-                                                       Duration::from_secs(30),
-                                                       Duration::from_secs(60)).unwrap();
+        let partial_decoder =
+            Decoder::decode_interval(file2, Duration::from_secs(30), Duration::from_secs(60))
+                .unwrap();
     }
 }
