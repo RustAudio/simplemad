@@ -130,7 +130,7 @@ where
             mad_frame_init(&mut new_decoder.frame);
             mad_synth_init(&mut new_decoder.synth);
             mad_stream_buffer(
-                &mut new_decoder.stream,
+                &new_decoder.stream,
                 new_decoder.buffer.as_ptr(),
                 bytes_read as c_ulong,
             );
@@ -297,7 +297,7 @@ where
 
         unsafe {
             mad_stream_buffer(
-                &mut self.stream,
+                &self.stream,
                 self.buffer.as_ptr(),
                 free_region_start as c_ulong,
             );
@@ -473,7 +473,6 @@ impl From<f64> for MadFixed32 {
 #[cfg(test)]
 mod test {
     use super::*;
-    use simplemad_sys::*;
     use std::io::BufReader;
     use std::fs::File;
     use std::path::Path;
