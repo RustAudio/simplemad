@@ -259,7 +259,7 @@ where
             .map(|ch| {
                 ch.into_iter()
                     .take(pcm.length as usize)
-                    .map(|sample| MadFixed32::from(*sample))
+                    .map(|sample| MadFixed32::new(*sample))
                     .collect()
             })
             .collect();
@@ -885,6 +885,65 @@ mod test {
         }
         assert_eq!(error_count, 0);
         assert_eq!(frame_count, 193);
+    }
+
+    fn gather_min_max<'a, I: IntoIterator<Item=&'a MadFixed32>>(iter: I, min_max: &mut (i32, i32)) {
+        // to_raw() is used, because other conversions do clipping to [-1, 1]
+        for s in iter.into_iter().map(|v| v.to_raw()) {
+            if min_max.0 > s {
+                min_max.0 = s;
+            } else if min_max.1 < s {
+                min_max.1 = s;
+            }
+        }
+    }
+
+    fn assert_min_max(min_max: (i32, i32), expected: (f64, f64)) {
+        // A MadFixed32 constant equal to 1
+        const ONE: i32 = 0x10000000;
+
+        let (min_sample, max_sample) = min_max;
+        let min_sample = min_sample as f64 / ONE as f64;
+        let max_sample = max_sample as f64 / ONE as f64;
+
+        assert!((min_sample - expected.0).abs() < 0.05, "Min sample not close to {}: {}", expected.0, min_sample);
+        assert!((max_sample - expected.1).abs() < 0.05, "Max sample not close to {}: {}", expected.1, max_sample);
+    }
+
+    #[test]
+    fn constant_single_channel_320_11025hz_tone() {
+        let path = Path::new("sample_mp3s/constant_single_channel_320_11025hz_tone.mp3");
+        let file = File::open(&path).unwrap();
+        let decoder = Decoder::decode(file).unwrap();
+        let mut frame_count = 0;
+        let mut error_count = 0;
+        let mut min_max_samples = (0, 0);
+
+        for item in decoder {
+            match item {
+                Err(_) => {
+                    if frame_count > 0 {
+                        error_count += 1;
+                    }
+                }
+                Ok(f) => {
+                    frame_count += 1;
+                    assert_eq!(f.sample_rate, 44100);
+                    assert_eq!(f.mode, MadMode::SingleChannel);
+                    assert_eq!(f.layer, MadLayer::LayerIII);
+                    assert_eq!(f.bit_rate, 320000);
+                    assert_eq!(f.samples.len(), 1);
+                    assert_eq!(f.samples[0].len(), 1152);
+
+                    gather_min_max(f.samples[0].iter(), &mut min_max_samples);
+                }
+            }
+        }
+        assert_eq!(error_count, 0);
+        assert_eq!(frame_count, 40);
+
+        // Check that the raw output signal is approximately within [-1, 1] interval
+        assert_min_max(min_max_samples, (-1.0, 1.0));
     }
 
     #[allow(unused_variables)]
