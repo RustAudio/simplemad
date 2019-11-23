@@ -17,6 +17,9 @@ jobs:
           - nightly
 
     steps:
+      - name: Provision
+        run: sudo apt -y install libmad0 libmad0-dev
+
       - name: Checkout
         uses: actions/checkout@v1
 
