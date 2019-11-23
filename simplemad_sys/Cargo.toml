@@ -12,7 +12,6 @@ license = "MIT"
 build = "build.rs"
 
 [features]
-default = ["vendor"]
 vendor = ["cc"]
 
 [build-dependencies]
