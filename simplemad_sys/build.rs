@@ -1,7 +1,5 @@
 #[cfg(feature = "vendor")]
 mod vendor {
-    extern crate cc;
-
     use std::env;
 
     pub fn vendor_libmad() {
@@ -58,8 +56,6 @@ mod vendor {
 
 #[cfg(not(feature = "vendor"))]
 mod system {
-    extern crate pkg_config;
-
     pub fn link_libmad() {
         pkg_config::find_library("mad").expect("Failed to link libmad, is it available?");
     }

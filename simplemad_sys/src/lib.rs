@@ -1,7 +1,5 @@
 #![crate_name = "simplemad_sys"]
 
-extern crate libc;
-
 use libc::{c_char, c_int, c_long, c_uint, c_ushort, c_void};
 use std::fmt::{self};
 use std::ptr;
