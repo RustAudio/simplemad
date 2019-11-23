@@ -56,11 +56,11 @@
 #![deny(missing_docs, trivial_casts, unstable_features, unused_import_braces)]
 
 extern crate simplemad_sys;
-use std::io;
-use std::default::Default;
-use std::cmp::{max, min};
-use std::time::Duration;
 use simplemad_sys::*;
+use std::cmp::{max, min};
+use std::default::Default;
+use std::io;
+use std::time::Duration;
 
 /// A decoded frame
 #[derive(Clone, Debug)]
