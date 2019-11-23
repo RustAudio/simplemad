@@ -36,6 +36,9 @@ mod vendor {
             build.define("FPM_DEFAULT", None);
         };
 
+        build.opt_level(3);
+        build.warnings(false);
+
         build
             .file("libmad-src/bit.c")
             .file("libmad-src/decoder.c")
@@ -47,8 +50,9 @@ mod vendor {
             .file("libmad-src/stream.c")
             .file("libmad-src/synth.c")
             .file("libmad-src/timer.c")
-            .file("libmad-src/version.c")
-            .compile("libmad.a");
+            .file("libmad-src/version.c");
+
+        build.compile("libmad.a");
     }
 }
 
