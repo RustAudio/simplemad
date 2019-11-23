@@ -123,7 +123,7 @@ where
             end_time: end_time,
         };
 
-        let bytes_read = try!(new_decoder.reader.read(&mut *new_decoder.buffer));
+        let bytes_read = new_decoder.reader.read(&mut *new_decoder.buffer)?;
 
         unsafe {
             mad_stream_init(&mut new_decoder.stream);
@@ -185,7 +185,7 @@ where
             }
             Err(SimplemadError::Mad(MadError::BufLen)) => {
                 // Refill buffer and try again
-                if try!(self.refill_buffer()) == 0 {
+                if self.refill_buffer()? == 0 {
                     Err(SimplemadError::EOF)
                 } else {
                     self.get_frame()
@@ -203,7 +203,7 @@ where
                         self.position += frame.duration;
                     }
                     Err(SimplemadError::Mad(MadError::BufLen)) => {
-                        if try!(self.refill_buffer()) == 0 {
+                        if self.refill_buffer()? == 0 {
                             return Err(SimplemadError::EOF);
                         }
                     }
@@ -253,7 +253,8 @@ where
         }
 
         let pcm = &self.synth.pcm;
-        let samples = pcm.samples
+        let samples = pcm
+            .samples
             .into_iter()
             .take(pcm.channels as usize)
             .map(|ch| {
@@ -289,7 +290,7 @@ where
         let mut free_region_start = unused_byte_count;
         while free_region_start != buffer_len {
             let slice = &mut self.buffer[free_region_start..buffer_len];
-            match try!(self.reader.read(slice)) {
+            match self.reader.read(slice)? {
                 0 => break,
                 n => free_region_start += n,
             }
@@ -473,8 +474,8 @@ impl From<f64> for MadFixed32 {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::io::BufReader;
     use std::fs::File;
+    use std::io::BufReader;
     use std::path::Path;
     use std::time::Duration;
 
@@ -887,7 +888,10 @@ mod test {
         assert_eq!(frame_count, 193);
     }
 
-    fn gather_min_max<'a, I: IntoIterator<Item=&'a MadFixed32>>(iter: I, min_max: &mut (i32, i32)) {
+    fn gather_min_max<'a, I: IntoIterator<Item = &'a MadFixed32>>(
+        iter: I,
+        min_max: &mut (i32, i32),
+    ) {
         // to_raw() is used, because other conversions do clipping to [-1, 1]
         for s in iter.into_iter().map(|v| v.to_raw()) {
             if min_max.0 > s {
@@ -906,8 +910,18 @@ mod test {
         let min_sample = min_sample as f64 / ONE as f64;
         let max_sample = max_sample as f64 / ONE as f64;
 
-        assert!((min_sample - expected.0).abs() < 0.05, "Min sample not close to {}: {}", expected.0, min_sample);
-        assert!((max_sample - expected.1).abs() < 0.05, "Max sample not close to {}: {}", expected.1, max_sample);
+        assert!(
+            (min_sample - expected.0).abs() < 0.05,
+            "Min sample not close to {}: {}",
+            expected.0,
+            min_sample
+        );
+        assert!(
+            (max_sample - expected.1).abs() < 0.05,
+            "Max sample not close to {}: {}",
+            expected.1,
+            max_sample
+        );
     }
 
     #[test]
