@@ -10,8 +10,12 @@ keywords = ["mpeg", "mp3", "libmad"]
 license = "MIT"
 build = "build.rs"
 
+[features]
+default = ["vendor"]
+vendor = ["gcc"]
+
 [build-dependencies]
-gcc = "0.3.55"
+gcc = { version = "0.3.55", optional = true }
 pkg-config = "0.3.17"
 
 [lib]
