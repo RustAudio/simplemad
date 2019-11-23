@@ -1,11 +1,11 @@
 #[cfg(feature = "vendor")]
 mod vendor {
-    extern crate gcc;
+    extern crate cc;
 
     use std::env;
 
     pub fn vendor_libmad() {
-        let mut build = gcc::Build::new();
+        let mut build = cc::Build::new();
         build.include("libmad-src");
         build.define("HAVE_CONFIG_H", None);
 

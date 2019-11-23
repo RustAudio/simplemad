@@ -12,10 +12,10 @@ build = "build.rs"
 
 [features]
 default = ["vendor"]
-vendor = ["gcc"]
+vendor = ["cc"]
 
 [build-dependencies]
-gcc = { version = "0.3.55", optional = true }
+cc = { version = "1.0.47", optional = true }
 pkg-config = "0.3.17"
 
 [lib]
