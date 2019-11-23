@@ -9,6 +9,9 @@ matrix:
   allow_failures:
     - rust: nightly
 
+before_install:
+    - sudo apt -y install libmad0 libmad0-dev
+
 env:
   - TEST_DIR=simplemad
   - TEST_DIR=simplemad_sys
