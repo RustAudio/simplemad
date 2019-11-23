@@ -2,7 +2,7 @@
 
 extern crate libc;
 
-use libc::{c_void, c_char, c_int, c_uint, c_ushort, c_long, uint16_t};
+use libc::{c_char, c_int, c_long, c_uint, c_ushort, c_void};
 use std::fmt::{self};
 use std::ptr;
 
@@ -16,10 +16,11 @@ extern "C" {
         header_cb: extern "C" fn(message: *mut c_void, header: &MadHeader) -> MadFlow,
         filter_cb: extern "C" fn(),
         output_cb: extern "C" fn(message: *mut c_void, header: &MadHeader, pcm: &MadPcm) -> MadFlow,
-        error_cb: extern "C" fn(message: *mut c_void,
-                                stream: &MadStream,
-                                frame: *const c_void)
-                                -> MadFlow,
+        error_cb: extern "C" fn(
+            message: *mut c_void,
+            stream: &MadStream,
+            frame: *const c_void,
+        ) -> MadFlow,
         message_cb: extern "C" fn(),
     );
 
@@ -137,8 +138,8 @@ impl Default for MadError {
 #[repr(C)]
 pub struct MadBitPtr {
     pub byte: *mut c_char,
-    pub cache: uint16_t,
-    pub left: uint16_t,
+    pub cache: u16,
+    pub left: u16,
 }
 
 impl Default for MadBitPtr {
@@ -232,8 +233,7 @@ impl fmt::Debug for MadSynth {
         write!(
             f,
             "MadSynth {{phase: {}, pcm: {:?} }}",
-            self.phase,
-            self.pcm
+            self.phase, self.pcm
         )
     }
 }
@@ -309,8 +309,8 @@ pub struct MadHeader {
 #[repr(C)]
 pub struct MadPcm {
     pub sample_rate: c_uint,
-    pub channels: uint16_t,
-    pub length: uint16_t,
+    pub channels: u16,
+    pub length: u16,
     pub samples: [[i32; 1152]; 2],
 }
 
@@ -330,9 +330,7 @@ impl fmt::Debug for MadPcm {
         write!(
             f,
             "MadPcm {{sample_rate: {}, channels: {}, length: {}}}",
-            self.sample_rate,
-            self.channels,
-            self.length
+            self.sample_rate, self.channels, self.length
         )
     }
 }
@@ -362,7 +360,7 @@ struct MadAsyncParameters {
 pub struct MadDecoder {
     mode: MadDecoderMode,
     options: c_int,
-    async: MadAsyncParameters,
+    r#async: MadAsyncParameters,
     sync: *const c_void,
     cb_data: *const c_void,
     input_func: *const c_void,
@@ -378,7 +376,7 @@ impl Default for MadDecoder {
         MadDecoder {
             mode: Default::default(),
             options: 0,
-            async: Default::default(),
+            r#async: Default::default(),
             sync: ptr::null::<c_void>(),
             cb_data: ptr::null::<c_void>(),
             input_func: ptr::null::<c_void>(),
