@@ -58,7 +58,7 @@ let duration = headers.filter_map(|r| {
 
 # Documentation
 
-http://bendykst.github.io/doc/simplemad/index.html
+https://docs.rs/simplemad
 
 # License
 
