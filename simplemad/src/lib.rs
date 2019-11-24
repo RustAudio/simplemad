@@ -112,15 +112,15 @@ where
         headers_only: bool,
     ) -> Result<Decoder<R>, SimplemadError> {
         let mut new_decoder = Decoder {
-            reader: reader,
+            reader,
             buffer: Box::new([0u8; 0x8000]),
             stream: Default::default(),
             synth: Default::default(),
             frame: Default::default(),
             position: Duration::new(0, 0),
-            headers_only: headers_only,
-            start_time: start_time,
-            end_time: end_time,
+            headers_only,
+            start_time,
+            end_time,
         };
 
         let bytes_read = new_decoder.reader.read(&mut *new_decoder.buffer)?;
@@ -255,10 +255,10 @@ where
         let pcm = &self.synth.pcm;
         let samples = pcm
             .samples
-            .into_iter()
+            .iter()
             .take(pcm.channels as usize)
             .map(|ch| {
-                ch.into_iter()
+                ch.iter()
                     .take(pcm.length as usize)
                     .map(|sample| MadFixed32::new(*sample))
                     .collect()
@@ -272,7 +272,7 @@ where
             layer: self.frame.header.layer,
             bit_rate: self.frame.header.bit_rate as u32,
             position: self.position,
-            samples: samples,
+            samples,
         })
     }
 
@@ -397,12 +397,12 @@ impl MadFixed32 {
     }
 
     /// Get the raw fixed-point representation
-    pub fn to_raw(&self) -> i32 {
+    pub fn to_raw(self) -> i32 {
         self.value
     }
 
     /// Convert to i16
-    pub fn to_i16(&self) -> i16 {
+    pub fn to_i16(self) -> i16 {
         let frac_bits = 28;
         let unity_value = 0x1000_0000;
         let rounded_value = self.value + (1 << (frac_bits - 16));
@@ -413,7 +413,7 @@ impl MadFixed32 {
     }
 
     /// Convert to i32
-    pub fn to_i32(&self) -> i32 {
+    pub fn to_i32(self) -> i32 {
         // clip only
         if self.value > i32::max_value() / 8 {
             i32::max_value()
@@ -425,15 +425,15 @@ impl MadFixed32 {
     }
 
     /// Convert to f32
-    pub fn to_f32(&self) -> f32 {
+    pub fn to_f32(self) -> f32 {
         // The big number is 2^28, as 28 is the fractional bit count)
-        f32::max(-1.0, f32::min(1.0, (self.value as f32) / 268435456.0))
+        f32::max(-1.0, f32::min(1.0, (self.value as f32) / 268_435_456.0))
     }
 
     /// Convert to f64
-    pub fn to_f64(&self) -> f64 {
+    pub fn to_f64(self) -> f64 {
         // The big number is 2^28, as 28 is the fractional bit count)
-        f64::max(-1.0, f64::min(1.0, (f64::from(self.value)) / 268435456.0))
+        f64::max(-1.0, f64::min(1.0, (f64::from(self.value)) / 268_435_456.0))
     }
 }
 
@@ -456,7 +456,7 @@ impl From<f32> for MadFixed32 {
         MadFixed32 {
             // The big number is 2^28, as
             // 28 is the fractional bit count)
-            value: (v * 268435456.0) as i32,
+            value: (v * 268_435_456.0) as i32,
         }
     }
 }
@@ -466,7 +466,7 @@ impl From<f64> for MadFixed32 {
         MadFixed32 {
             // The big number is 2^28, as
             // 28 is the fractional bit count)
-            value: (v * 268435456.0) as i32,
+            value: (v * 268_435_456.0) as i32,
         }
     }
 }
