@@ -1,6 +1,4 @@
-[![](https://img.shields.io/crates/v/simplemad.svg)](https://crates.io/crates/simplemad)
-
-[![Build Status](https://travis-ci.org/RustAudio/simple-mad.rs.svg?branch=master)](https://travis-ci.org/RustAudio/simple-mad.rs)
+# simplemad [![](https://img.shields.io/crates/v/simplemad.svg)](https://crates.io/crates/simplemad)[![](https://github.com/RustAudio/simplemad/workflows/.github/workflows/ci.yml/badge.svg)](https://github.com/RustAudio/simplemad/actions?query=workflow%3A%22Continuous+Integration%22)
 
 simplemad is a simple interface for libmad, the MPEG audio decoding library.
 
