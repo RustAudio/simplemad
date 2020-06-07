@@ -14,4 +14,4 @@ license = "MIT"
 name = "simplemad"
 
 [dependencies]
-simplemad_sys = { version = "0.5.0", path = "../simplemad_sys" }
+simplemad_sys = { version = "0.5.0", path = "../simplemad_sys", features = ["vendor"] }
