@@ -67,7 +67,7 @@ int (*const decoder_table[3])(struct mad_stream *, struct mad_frame *) = {
  */
 void mad_header_init(struct mad_header *header)
 {
-  header->layer          = 0;
+  header->layer          = MAD_LAYER_I;
   header->mode           = 0;
   header->mode_extension = 0;
   header->emphasis       = 0;
